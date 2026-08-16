@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Greedy Growers 🌱 — harvest before the lightning</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌳</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+  <!-- ======= TOP BAR ======= -->
+  <header id="topbar">
+    <div class="brand" title="Greedy Growers">
+      <span class="brand-icon">🌱</span>
+      <div class="brand-text">
+        <div class="brand-title">Greedy Growers</div>
+        <div class="brand-sub">grow tall. harvest early. or don't.</div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat chip" id="coinStat" title="Coins in your pocket">
+        <span class="stat-ico">🪙</span><span id="coinVal">0</span>
+      </div>
+      <div class="stat chip" id="lifeStat" title="Lifetime earnings">
+        <span class="stat-ico">💸</span><span id="lifeVal">0</span>
+      </div>
+      <div class="stat chip" id="greedStat" title="Greed level (rebirths)">
+        <span class="stat-ico">😈</span><span id="greedVal">0</span>
+      </div>
+      <div class="stat chip streak" id="streakStat" title="Harvest trees at 60%+ growth to grow your greed streak">
+        <span class="stat-ico">🔥</span><span id="streakVal">0</span><span class="streak-x">x</span>
+      </div>
+    </div>
+
+    <div class="weather-chip" id="weatherChip">
+      <span id="weatherIco">☀️</span>
+      <span id="weatherText">Clear skies</span>
+    </div>
+
+    <nav class="topnav">
+      <button class="navbtn" data-tab="shop" title="Buy seeds at the river">🌊 Shop</button>
+      <button class="navbtn" data-tab="upgrades" title="Upgrades">⬆️ Upgrades</button>
+      <button class="navbtn" data-tab="codes" title="Redeem codes">🎁 Codes</button>
+      <button class="navbtn" data-tab="rebirth" title="Rebirth & stats">♻️ Rebirth</button>
+      <button class="iconbtn" id="soundBtn" title="Toggle sound">🔊</button>
+      <button class="iconbtn" id="helpBtn" title="How to play">❓</button>
+    </nav>
+  </header>
+
+  <!-- ======= GAME AREA ======= -->
+  <main id="gamewrap">
+    <canvas id="game"></canvas>
+
+    <!-- floating UI overlays on the canvas -->
+    <div id="invbar" class="invbar">
+      <div class="invlabel">🌰 Seed bags</div>
+      <div id="invItems" class="invitems"></div>
+      <div id="invEmpty" class="invempty">Buy seeds at the river shop →</div>
+    </div>
+
+    <div id="selectedHint" class="selected-hint hidden">
+      🌰 <b id="selectedName"></b> selected — tap an empty plot to plant
+      <button id="cancelSel" class="tinybtn">✕</button>
+    </div>
+  </main>
+
+  <!-- ======= SIDE PANEL ======= -->
+  <aside id="panel">
+    <!-- SHOP -->
+    <section class="tabpane" id="tab-shop">
+      <h2>🌊 The River Seed Shack</h2>
+      <p class="panel-sub">"Fresh seeds, straight from the river. Greed not included… <i>yet</i>."</p>
+      <div id="shopList" class="shop-list"></div>
+    </section>
+
+    <!-- UPGRADES -->
+    <section class="tabpane hidden" id="tab-upgrades">
+      <h2>⬆️ Upgrades</h2>
+      <p class="panel-sub">Grow faster, richer, and safer.</p>
+      <div id="upgradeList" class="shop-list"></div>
+    </section>
+
+    <!-- CODES -->
+    <section class="tabpane hidden" id="tab-codes">
+      <h2>🎁 Redeem codes</h2>
+      <p class="panel-sub">Codes are case-sensitive and expire when the creator gets bored.</p>
+      <div class="code-row">
+        <input id="codeInput" type="text" placeholder="Enter code…" autocomplete="off" spellcheck="false">
+        <button id="codeBtn" class="primary">Redeem</button>
+      </div>
+      <div id="codeHint" class="code-hint"></div>
+      <h3 class="mini-h">Your codes</h3>
+      <div id="codeList" class="code-list"></div>
+    </section>
+
+    <!-- REBIRTH / STATS -->
+    <section class="tabpane hidden" id="tab-rebirth">
+      <h2>♻️ Rebirth</h2>
+      <p class="panel-sub">Sacrifice everything for permanent Greed. Each level = <b>+75% value</b> and <b>+15% growth speed</b>.</p>
+      <div class="rebirth-box">
+        <div class="rebirth-req" id="rebirthReq"></div>
+        <div class="progress"><div class="progress-fill" id="rebirthBar"></div></div>
+        <div class="progress-label" id="rebirthPct"></div>
+        <button class="primary wide" id="rebirthBtn" disabled>Rebirth</button>
+        <div class="rebirth-warn">Resets coins, plots, upgrades and seed bags. Greed level is forever.</div>
+      </div>
+      <h3 class="mini-h">📊 Lifetime stats</h3>
+      <div class="statgrid" id="statGrid"></div>
+    </section>
+  </aside>
+
+  <!-- ======= TOASTS ======= -->
+  <div id="toasts"></div>
+
+  <!-- ======= HELP MODAL ======= -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <button class="modal-x" id="modalX">✕</button>
+      <h2>🌳 How to play Greedy Growers</h2>
+      <ol class="help-list">
+        <li><b>Buy a seed at the river.</b> Open the <b>Shop</b>, pick a seed bag, and buy it.</li>
+        <li><b>Plant it.</b> Your seed bags appear at the bottom of the garden. Tap a bag, then tap an empty plot.</li>
+        <li><b>Watch it grow.</b> Trees grow taller and more valuable over time. The price tag above each tree shows what it's worth <i>right now</i>.</li>
+        <li><b>Harvest before the lightning.</b> ⛈️ Storms roll in with a warning. Tap a tree to harvest it — <b>waiting too long means lightning turns your fortune to charcoal</b>.</li>
+      </ol>
+      <div class="help-tips">
+        <p>💡 <b>Greed streak:</b> harvest a tree at 60%+ growth to stack 🔥 (up to +50% value). Harvesting too early resets it.</p>
+        <p>💡 <b>Lightning rods</b> reduce strike odds. Fully grown trees are the tastiest target for Zeus.</p>
+        <p>💡 <b>Codes:</b> try <code>ILOVECATS</code> for a starter boost.</p>
+      </div>
+      <button class="primary wide" id="modalGo">Plant my first seed 🌱</button>
+    </div>
+  </div>
+
+  <div id="confirmModal" class="modal hidden">
+    <div class="modal-card small">
+      <h2 id="confirmTitle">Are you sure?</h2>
+      <p id="confirmBody"></p>
+      <div class="confirm-btns">
+        <button class="primary" id="confirmYes">Yes</button>
+        <button class="ghost" id="confirmNo">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
