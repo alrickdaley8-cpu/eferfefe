@@ -15,7 +15,7 @@ import net.minecraft.potion.StatusEffects;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.math.Vec3f;
+import org.joml.Vector3f;
 
 /**
  * Core game logic for the Spidey Sense ability.
@@ -75,9 +75,9 @@ public final class SpideySenseHandler {
     private static int ticksSinceLastVibration = 0;
 
     // ----- "suit" dust particles (Spider-Man red + blue) ----------------------
-    private static final DustParticleEffect SUIT_RED   = new DustParticleEffect(new Vec3f(0.88f, 0.10f, 0.15f), 1.30f);
-    private static final DustParticleEffect SUIT_BLUE  = new DustParticleEffect(new Vec3f(0.10f, 0.22f, 0.90f), 1.30f);
-    private static final DustParticleEffect SUIT_WHITE = new DustParticleEffect(new Vec3f(1.00f, 1.00f, 1.00f), 0.90f);
+    private static final DustParticleEffect SUIT_RED   = new DustParticleEffect(new Vector3f(0.88f, 0.10f, 0.15f), 1.30f);
+    private static final DustParticleEffect SUIT_BLUE  = new DustParticleEffect(new Vector3f(0.10f, 0.22f, 0.90f), 1.30f);
+    private static final DustParticleEffect SUIT_WHITE = new DustParticleEffect(new Vector3f(1.00f, 1.00f, 1.00f), 0.90f);
 
     // ----- charge state --------------------------------------------------------
     private static boolean isCharging = false;
