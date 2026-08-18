@@ -13,16 +13,27 @@ import org.slf4j.LoggerFactory;
  * Spidey Sense Mod
  *
  * Inspired by Miles Morales' spider-sense from the Spider-Verse films.
- * Press V (default) to activate. While active:
- *   - Time freezes for everyone except you (3 seconds)
- *   - Hostile mobs within 30 blocks get a red glow visible through walls
- *   - Comic-book pop-ups ("POW!", "WHAM!", "THWIP!", "BAM!"...) explode on screen
- *   - A giant "SPIDER-SENSE!" title splash appears
- *   - Speed lines, burst ring, flash, zoom pulse, screen shake
- *   - Three-layered red/orange vignette pulses at the edges
- *   - Red flames around detected hostiles
  *
- * Cost: 1 hunger point in survival. Cooldown: 30 seconds.
+ *  HOLD-TO-CHARGE: hold V to charge up your bioelectric spidey sense.
+ *  Release to trigger. Longer hold = longer effect, longer cooldown.
+ *
+ *  While active:
+ *   - Time freezes for everyone except you
+ *   - Hostile mobs within 30 blocks glow red through walls
+ *   - Comic-book pop-ups ("POW!", "WHAM!", "THWIP!", "BAM!", "INCOMING!"...) explode
+ *   - A giant "SPIDER-SENSE!" title splash appears
+ *   - Yellow halftone dot pattern (comic-book shading)
+ *   - Bioelectric vein lightning flickering across the screen
+ *   - Rotating radial speed lines
+ *   - Expanding comic burst ring + brief white flash
+ *   - Three-layered red/orange/yellow vignette
+ *   - Subtle red/orange screen tint, screen shake, zoom pulse
+ *   - Thick black comic panel border with yellow inner accent
+ *   - Red flames around detected hostiles
+ *   - Continuous vibration particles around the player
+ *   - "INCOMING!" warning when a projectile is flying at you
+ *
+ * Cost: 1 hunger point (full charge) in survival. Cooldown: 30s (full charge).
  */
 public class SpideySenseMod implements ClientModInitializer {
     public static final String MOD_ID = "spideysense";

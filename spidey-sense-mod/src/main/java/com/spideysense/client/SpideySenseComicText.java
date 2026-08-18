@@ -75,6 +75,21 @@ public final class SpideySenseComicText {
                 0xFFFFEB3B, 2.5f, (RANDOM.nextFloat() - 0.5f) * 20f, 24, true));
     }
 
+    /**
+     * Spawn a big red "INCOMING!" warning when a projectile is flying at the
+     * player. We don't stack these — at most one INCOMING! is alive at a time.
+     */
+    public static void spawnIncoming() {
+        for (Pop p : POPS) {
+            if ("INCOMING!".equals(p.text)) return;
+        }
+        MinecraftClient client = MinecraftClient.getInstance();
+        int sw = client.getWindow().getScaledWidth();
+        int sh = client.getWindow().getScaledHeight();
+        float rotation = (RANDOM.nextFloat() - 0.5f) * 14f;
+        POPS.add(new Pop("INCOMING!", sw / 2f, sh * 0.32f, 0xFFFF1744, 2.2f, rotation, 20, true));
+    }
+
     /** Age every pop by one tick and remove dead ones. */
     public static void tick() {
         Iterator<Pop> it = POPS.iterator();
