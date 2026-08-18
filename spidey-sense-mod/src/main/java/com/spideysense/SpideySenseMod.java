@@ -16,8 +16,11 @@ import org.slf4j.LoggerFactory;
  * Press V (default) to activate. While active:
  *   - Time freezes for everyone except you (3 seconds)
  *   - Hostile mobs within 30 blocks get a red glow visible through walls
- *   - Screen gets the signature red/orange vignette
- *   - Heartbeat + whoosh sound plays
+ *   - Comic-book pop-ups ("POW!", "WHAM!", "THWIP!", "BAM!"...) explode on screen
+ *   - A giant "SPIDER-SENSE!" title splash appears
+ *   - Speed lines, burst ring, flash, zoom pulse, screen shake
+ *   - Three-layered red/orange vignette pulses at the edges
+ *   - Red flames around detected hostiles
  *
  * Cost: 1 hunger point in survival. Cooldown: 30 seconds.
  */
