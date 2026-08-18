@@ -1,0 +1,6 @@
+.venv/
+data/corpus.txt
+data/diverse_extension.txt
+data/tokens.pt
+checkpoints/*.pt
+__pycache__/

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TinyLLM — 1M / 20M Demo</title>
+<style>
+  :root { --bg:#0f1117; --card:#1a1d27; --border:#2a2e3f; --accent:#7c5cff; --text:#e6e8f0; --muted:#8b90a3; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;line-height:1.5;min-height:100vh}
+  header{padding:20px 32px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+  header h1{font-size:20px;font-weight:700}
+  header h1 span{color:var(--accent)}
+  .badge{background:var(--card);border:1px solid var(--border);padding:4px 10px;border-radius:20px;font-size:12px;color:var(--muted)}
+  main{max-width:900px;margin:0 auto;padding:24px;display:grid;gap:24px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px}
+  .card h3{font-size:13px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px}
+  .card .big{font-size:24px;font-weight:700}
+  .card .small{font-size:12px;color:var(--muted);margin-top:4px}
+  .chat{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;min-height:500px}
+  .chat-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:center}
+  .dot{width:8px;height:8px;border-radius:50%;background:#2ecc71;box-shadow:0 0 8px #2ecc71}
+  .messages{flex:1;padding:18px;display:flex;flex-direction:column;gap:14px;overflow:auto;max-height:600px}
+  .msg{max-width:85%;padding:12px 14px;border-radius:14px;font-size:14px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+  .msg.user{align-self:flex-end;background:var(--accent);color:white;border-bottom-right-radius:4px}
+  .msg.assistant{align-self:flex-start;background:#242836;border:1px solid var(--border);border-bottom-left-radius:4px}
+  .msg.system{align-self:center;background:transparent;color:var(--muted);font-size:12px}
+  .input-bar{padding:12px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:end}
+  textarea{flex:1;background:#12141d;border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px 12px;resize:none;min-height:44px;max-height:120px;font-family:inherit;font-size:14px;outline:none}
+  textarea:focus{border-color:var(--accent)}
+  button{background:var(--accent);color:white;border:0;padding:10px 18px;border-radius:10px;font-weight:600;cursor:pointer;transition:opacity .15s}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .controls{display:flex;gap:12px;flex-wrap:wrap;padding:0 18px 12px}
+  .controls label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+  .controls input{width:90px;background:#12141d;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px}
+  pre{background:#12141d;border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;overflow:auto;color:#b8bcd0}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<header>
+  <h1>TinyLLM <span>1M · 20M tokens</span></h1>
+  <div style="display:flex;gap:8px">
+    <div class="badge" id="param-badge">~1.06M params</div>
+    <a class="badge" href="/game" style="text-decoration:none">🎮 Game</a>
+  </div>
+</header>
+
+<main>
+  <div class="cards">
+    <div class="card"><h3>Parameters</h3><div class="big">1.06M</div><div class="small">d=96, 6 layers, 6 heads, vocab 4096, RoPE, RMSNorm, tied</div></div>
+    <div class="card"><h3>Tokens</h3><div class="big">20M</div><div class="small">20× params — Chinchilla optimal. 85M chars synthetic corpus</div></div>
+    <div class="card"><h3>Context</h3><div class="big">256</div><div class="small">batch 32 × 256 = 8192 tok/batch, 2442 steps total</div></div>
+    <div class="card"><h3>Size</h3><div class="big">~4 MB</div><div class="small">fp32 checkpoint ~4MB, int8 <2MB. Runs on CPU</div></div>
+  </div>
+
+  <div class="chat">
+    <div class="chat-header"><div class="dot"></div><strong style="font-size:14px">TinyLLM Chat</strong><span style="margin-left:auto;font-size:12px;color:var(--muted)">decoder-only transformer from scratch</span></div>
+    <div class="messages" id="messages">
+      <div class="msg system">Model trained from scratch on 20M tokens of children stories, QA, math, code. Try prompts like "Once upon a time, Lily" or "Q: What is 12 + 8? A:"</div>
+    </div>
+    <div class="controls">
+      <label>Max new tokens <input id="maxTok" type="number" value="120" min="10" max="256"></label>
+      <label>Temperature <input id="temp" type="number" value="0.8" step="0.1" min="0.1" max="1.5"></label>
+      <label>Top-k <input id="topk" type="number" value="50" min="1" max="100"></label>
+      <button id="clearBtn" style="background:var(--card);border:1px solid var(--border);color:var(--muted)">Clear</button>
+    </div>
+    <div class="input-bar">
+      <textarea id="prompt" placeholder="Enter prompt... (e.g. Once upon a time, Lily went to the forest)"></textarea>
+      <button id="sendBtn">Generate</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Architecture</h3>
+    <pre id="arch">Loading...</pre>
+  </div>
+
+  <div class="card">
+    <h3>How to train locally</h3>
+    <pre>python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# 1. Corpus 85M chars → 20M tokens
+python -m llm.build_corpus --out data/corpus.txt --chars 85000000
+
+# 2. Tokenizer 4096 vocab
+python -m llm.tokenizer --corpus data/corpus.txt --out checkpoints/tokenizer.json
+
+# 3. Train (2442 steps)
+python -m llm.train
+
+# 4. Generate
+python -m llm.generate --prompt "Once upon a time, Lily" --tokens 150
+</pre>
+  </div>
+</main>
+
+<script>
+const msgContainer = document.getElementById('messages');
+const promptEl = document.getElementById('prompt');
+const sendBtn = document.getElementById('sendBtn');
+const clearBtn = document.getElementById('clearBtn');
+const maxTokEl = document.getElementById('maxTok');
+const tempEl = document.getElementById('temp');
+const topkEl = document.getElementById('topk');
+
+function addMsg(text, cls){
+  const div = document.createElement('div');
+  div.className = 'msg '+cls;
+  div.textContent = text;
+  msgContainer.appendChild(div);
+  msgContainer.scrollTop = msgContainer.scrollHeight;
+  return div;
+}
+
+async function generate(){
+  const prompt = promptEl.value.trim();
+  if(!prompt) return;
+  addMsg(prompt, 'user');
+  promptEl.value='';
+  sendBtn.disabled=true;
+  sendBtn.textContent='Generating...';
+  const thinking = addMsg('▌ thinking...', 'assistant');
+
+  try{
+    const res = await fetch('/api/generate', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        prompt,
+        max_tokens: parseInt(maxTokEl.value)||100,
+        temperature: parseFloat(tempEl.value)||0.8,
+        top_k: parseInt(topkEl.value)||50
+      })
+    });
+    const data = await res.json();
+    if(data.error){
+      thinking.textContent = 'Error: '+data.error + '\n(Train the model first with python -m llm.train)';
+    } else {
+      // show only new part Bold? show full
+      thinking.textContent = data.generated;
+    }
+  } catch(e){
+    thinking.textContent = 'Failed to fetch: '+e+'\nRun python app.py and ensure model checkpoint exists, or use CLI: python -m llm.generate';
+  }
+  sendBtn.disabled=false;
+  sendBtn.textContent='Generate';
+}
+
+sendBtn.onclick = generate;
+promptEl.addEventListener('keydown', e=>{
+  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); generate(); }
+});
+clearBtn.onclick = ()=>{
+  msgContainer.innerHTML = '<div class="msg system">Chat cleared. Try "Once upon a time, Lily" or "Q: What is 5 + 7? A:"</div>';
+};
+
+document.getElementById('arch').textContent = `
+TinyLLM (1.06M)
+├─ Token Emb: 4096 × 96 = 393k params
+├─ RoPE positional (no params)
+├─ 6× Transformer Block (110k each)
+│  ├─ RMSNorm
+│  ├─ Causal Self-Attention (QKV + Out) 36k
+│  ├─ RMSNorm
+│  └─ MLP 96→384→96 GELU 73k
+├─ Final RMSNorm
+└─ LM Head tied with embedding (0 extra)
+
+Total: ~1,058,112 params
+Training: 20M tokens = 2442 steps × 8192 tok/batch
+Loss: causal cross-entropy, AdamW, cosine LR 5e-4→5e-5
+Data: synthetic TinyStories-like 85M chars
+`.trim();
+</script>
+</body>
+</html>
