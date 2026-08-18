@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "spideysense",
+  "version": "${version}",
+  "name": "Spidey Sense",
+  "description": "Adds the Miles Morales-style Spidey Sense ability. Press V to briefly slow time, reveal nearby hostiles through walls, and see the signature red/orange vignette.",
+  "authors": [
+    "Arena Agent"
+  ],
+  "contact": {
+    "homepage": "https://github.com/",
+    "sources": "https://github.com/"
+  },
+  "license": "MIT",
+  "icon": "assets/spideysense/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.spideysense.SpideySenseMod"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.14.0",
+    "fabric-api": "*",
+    "minecraft": "~1.20.1",
+    "java": ">=17"
+  }
+}
