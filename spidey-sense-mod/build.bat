@@ -1,32 +1,33 @@
 @echo off
 REM ============================================================================
-REM Spidey Sense Mod — build script for Minecraft 1.21.1 Fabric (Windows)
+REM Spidey Sense Mod — build script for Minecraft 1.20.1 Fabric (Windows)
 REM ============================================================================
 REM
-REM This script does everything in one shot on Windows.
+REM Run with:
+REM   build.bat           (Windows)
 REM
-REM   1. Detects an existing JDK 21 — uses it if found.
-REM   2. If no JDK 21 exists, downloads a portable Eclipse Temurin JDK 21
-REM      into .\build-tools\ and uses that. Tries multiple mirrors.
+REM What it does:
+REM   1. Detects an existing JDK 17 — uses it if found.
+REM   2. If no JDK 17 exists, downloads a portable Eclipse Temurin 17 into
+REM      .\build-tools\ and uses that. Tries multiple mirrors.
 REM   3. Generates the Gradle wrapper.
 REM   4. Builds the mod.
 REM
-REM Output: build\libs\spidey-sense-mod-1.1.0.jar
+REM Result: build\libs\spidey-sense-mod-1.0.0.jar
 REM ============================================================================
 
 setlocal enabledelayedexpansion
 
 cd /d "%~dp0"
 
-echo ==^> Looking for a JDK 21...
+echo ==^> Looking for a JDK 17...
 
-REM ---- 1. Find an existing JDK ------------------------------------------------
 set "JDK_DIR="
 
 REM Try JAVA_HOME first.
 if defined JAVA_HOME (
     if exist "%JAVA_HOME%\bin\javac.exe" (
-        "%JAVA_HOME%\bin\javac.exe" -version 2>nul | findstr /R "21\. 22\. 23\." >nul
+        "%JAVA_HOME%\bin\javac.exe" -version 2>nul | findstr /R "17\. 18\. 19\. 20\. 21\." >nul
         if not errorlevel 1 set "JDK_DIR=%JAVA_HOME%"
     )
 )
@@ -40,7 +41,7 @@ if "!JDK_DIR!"=="" (
 )
 :check_javac
 if "!JDK_DIR!"=="" if defined JAVAC_PATH (
-    "%JAVAC_PATH%" -version 2>nul | findstr /R "21\. 22\. 23\." >nul
+    "%JAVAC_PATH%" -version 2>nul | findstr /R "17\. 18\. 19\. 20\. 21\." >nul
     if not errorlevel 1 (
         for %%j in ("!JAVAC_PATH!") do set "JDK_DIR=%%~dpj.."
     )
@@ -50,26 +51,24 @@ if "!JDK_DIR!"=="" if defined JAVAC_PATH (
 REM Try common install locations.
 if "!JDK_DIR!"=="" (
     for %%p in (
-        "C:\Program Files\Eclipse Adoptium\jdk-21*"
-        "C:\Program Files\Microsoft\jdk-21*"
-        "C:\Program Files\Java\jdk-21*"
-        "C:\Program Files\BellSoft\LibericaJDK-21*"
+        "C:\Program Files\Eclipse Adoptium\jdk-17*"
+        "C:\Program Files\Microsoft\jdk-17*"
+        "C:\Program Files\Java\jdk-17*"
+        "C:\Program Files\BellSoft\LibericaJDK-17*"
     ) do (
         if exist "%%~p\bin\javac.exe" (
-            "%%~p\bin\javac.exe" -version 2>nul | findstr /R "21\. 22\. 23\." >nul
+            "%%~p\bin\javac.exe" -version 2>nul | findstr /R "17\. 18\. 19\. 20\. 21\." >nul
             if not errorlevel 1 set "JDK_DIR=%%~p"
         )
     )
 )
 
-REM ---- 2. Download JDK 21 if needed ------------------------------------------
 if "!JDK_DIR!"=="" (
-    echo     No system JDK 21 found. Downloading a portable JDK 21...
+    echo     No system JDK 17 found. Downloading a portable JDK 17...
     if not exist "build-tools" mkdir "build-tools"
     cd "build-tools"
 
-    REM Try multiple mirrors.
-    set "URLS=https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.5%%2B11/OpenJDK21U-jdk_x64_windows_hotspot_21.0.5_11.zip https://aka.ms/download-jdk/microsoft-jdk-21.0.5-windows-x64.zip"
+    set "URLS=https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.10%%2B7/OpenJDK17U-jdk_x64_windows_hotspot_17.0.10_7.zip https://aka.ms/download-jdk/microsoft-jdk-17.0.10-windows-x64.zip"
     set success=0
 
     for %%u in (!URLS!) do (
@@ -94,7 +93,7 @@ if "!JDK_DIR!"=="" (
     cd ..
     if !success!==0 (
         echo.
-        echo ERROR: Could not download a JDK 21 automatically.
+        echo ERROR: Could not download a JDK 17 automatically.
         echo Please install one manually from https://adoptium.net/
         exit /b 1
     )
@@ -110,17 +109,16 @@ echo ==^> JDK version:
 "!JAVA_HOME!\bin\javac.exe" -version
 "!JAVA_HOME!\bin\java.exe" -version
 
-REM ---- 3. Generate Gradle wrapper & build ------------------------------------
 echo.
 echo ==^> Generating Gradle wrapper...
-gradle wrapper --gradle-version 8.7
+gradle wrapper --gradle-version 8.5
 if errorlevel 1 goto :err
 
 echo. >> gradle.properties
 echo org.gradle.java.home=!JAVA_HOME!>> gradle.properties
 
 echo.
-echo ==^> Building Spidey Sense Mod for Minecraft 1.21.1...
+echo ==^> Building Spidey Sense Mod for Minecraft 1.20.1...
 call .\gradlew.bat build --no-daemon
 if errorlevel 1 goto :err
 
@@ -129,12 +127,12 @@ echo ===========================================================================
 echo   BUILD COMPLETE
 echo ============================================================================
 echo.
-echo   Runnable mod JAR:  build\libs\spidey-sense-mod-1.1.0.jar
+echo   Runnable mod JAR:  build\libs\spidey-sense-mod-1.0.0.jar
 echo.
 echo   Install:
-echo     1. Install Fabric Loader 0.16+ and Fabric API for Minecraft 1.21.1
+echo     1. Install Fabric Loader 0.14+ and Fabric API for Minecraft 1.20.1
 echo     2. Drop the JAR into your .minecraft\mods\ folder
-echo     3. Launch Minecraft 1.21.1
+echo     3. Launch Minecraft 1.20.1
 echo     4. Hold V to charge, release to activate Spidey Sense!
 echo.
 exit /b 0

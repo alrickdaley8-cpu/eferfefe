@@ -1,6 +1,6 @@
-# 🕷️ Spidey Sense Mod — Minecraft 1.21.1 Fabric
+# 🕷️ Spidey Sense Mod — Minecraft 1.20.1 Fabric
 
-A complete Minecraft Fabric mod project — 100% original code, ~67 KB of Java, ~73 KB of resources.
+A complete Minecraft Fabric mod project — 100% original code, ~67 KB of Java, ~2.4 MB of resources. Targets **Minecraft 1.20.1** with Fabric Loader 0.14+ and Fabric API 0.92+.
 
 > ## ⚠️ **CRITICAL: this file is a SOURCE PROJECT, not a pre-built mod!**
 >
@@ -32,13 +32,13 @@ build.bat
 ```
 
 The script:
-1. **Finds** a JDK 21 on your machine — if found, uses it.
-2. **Downloads** a portable Temurin JDK 21 into `./build-tools/jdk/` if not (tries 3 mirrors with fallbacks).
+1. **Finds** a JDK 17 on your machine — if found, uses it.
+2. **Downloads** a portable Temurin JDK 17 into `./build-tools/jdk/` if not (tries 3 mirrors with fallbacks).
 3. **Generates** the Gradle wrapper.
-4. **Compiles** the mod against Minecraft 1.21.1 + Fabric API 0.110.5.
-5. **Outputs** `build/libs/spidey-sense-mod-1.1.0.jar` — drop THAT into `.minecraft/mods/`.
+4. **Compiles** the mod against Minecraft 1.20.1 + Fabric API 0.92.1.
+5. **Outputs** `build/libs/spidey-sense-mod-1.0.0.jar` — drop THAT into `.minecraft/mods/`.
 
-You need: **internet access** (script downloads JDK + Minecraft + Yarn if missing).
+You need: **internet access** (script downloads JDK + Minecraft + Yarn if missing), and **JDK 17** will be downloaded automatically if you don't have it.
 
 ---
 
@@ -47,14 +47,14 @@ You need: **internet access** (script downloads JDK + Minecraft + Yarn if missin
 The runnable mod will be at:
 
 ```
-build/libs/spidey-sense-mod-1.1.0.jar     ← this is the actual mod
+build/libs/spidey-sense-mod-1.0.0.jar     ← this is the actual mod
 ```
 
 Drop it into your **`.minecraft/mods/`** folder. Also install:
-- [Fabric Loader 0.16+](https://fabricmc.net/use/) for Minecraft 1.21.1
-- [Fabric API for 1.21.1](https://modrinth.com/mod/fabric-api)
+- [Fabric Loader 0.14+](https://fabricmc.net/use/) for Minecraft 1.20.1
+- [Fabric API for 1.20.1](https://modrinth.com/mod/fabric-api)
 
-Launch Minecraft 1.21.1 → press **V** to charge → release for full Spider-Verse effect.
+Launch Minecraft 1.20.1 → press **V** to charge → release for full Spider-Verse effect.
 
 ---
 
@@ -62,8 +62,8 @@ Launch Minecraft 1.21.1 → press **V** to charge → release for full Spider-Ve
 
 | Category | What's in it |
 |---|---|
-| **Activation** | Hold V to charge a glowing ring converging on screen edges, release to trigger. Tick-tock sound accelerates with charge. Auto-fires at max charge. |
-| **Time freeze** | World ticks stop for 3 seconds (full charge), you keep moving freely |
+| **Activation** | Hold V to charge a glowing ring converging on the screen edges; release to trigger. Tick-tock sound accelerates with charge; auto-fires at max charge. |
+| **Time freeze** | World ticks stop for 3 seconds (full charge); you keep moving freely |
 | **Hostile reveal** | Every hostile within 30 blocks glows red through walls |
 | **Auto-dodge** | Resistance IV + Absorption IV during effect; velocity sidestep on inbound projectiles |
 | **17 visual layers** | Danger tint, halftone dots, bioelectric veins, sky lightning, 48 speed lines, double burst ring, 4-layer vignette, white flash, glitch tears, panel splits, comic panel border, web corners, spider eyes, spider logo, brightness flickers, comic pop-ups, web crosshair |
@@ -74,35 +74,52 @@ Launch Minecraft 1.21.1 → press **V** to charge → release for full Spider-Ve
 
 ---
 
+## 🔧 Tuning knobs
+
+Open `SpideySenseHandler.java` and tweak the constants at the top:
+
+```java
+public static final int DURATION_TICKS = 60;          // 3s at full charge
+public static final int COOLDOWN_TICKS = 20 * 30;     // 30s at full charge
+public static final int DETECT_RADIUS = 30;
+public static final int HUNGER_COST = 1;
+public static final int CHARGE_DURATION = 30;        // 1.5s to full charge
+public static final int RANDOM_POP_INTERVAL = 5;      // comic words frequency
+```
+
+`SpideySenseComicText.java` — change vocabulary:
+
+```java
+private static final String[] ACTION_WORDS = { "POW!", "WHAM!", ... };
+private static final String[] TITLE_WORDS = { "SPIDER-SENSE!", ... };
+```
+
+Rebuild with `./build.sh` after editing.
+
+---
+
 ## 📁 Project layout (the source JAR)
 
 ```
 spidey-sense-mod-source.jar
-├── README.md, LICENSE                            ← you're reading it
-├── META-INF/MANIFEST.MF                          ← well-formed JAR manifest
-├── build.sh, build.bat                           ← one-command build scripts
+├── README.md, LICENSE                                       ← you're reading it
+├── META-INF/MANIFEST.MF
+├── build.sh, build.bat                                      ← one-command build
 ├── build.gradle, settings.gradle, gradle.properties
 ├── gradle/wrapper/gradle-wrapper.properties
 ├── src/main/java/com/spideysense/
-│   ├── SpideySenseMod.java                       ← entrypoint
+│   ├── SpideySenseMod.java                                  ← entrypoint
 │   └── client/
-│       ├── SpideySenseKeybinds.java              ← V key
-│       ├── SpideySenseHandler.java               ← state machine + particles + auto-dodge
-│       ├── SpideySenseComicText.java             ← pop-up system
-│       └── SpideySenseOverlay.java               ← all 17 visual layers
+│       ├── SpideySenseKeybinds.java                         ← V key
+│       ├── SpideySenseHandler.java                          ← state machine + particles + auto-dodge
+│       ├── SpideySenseComicText.java                        ← pop-up system
+│       └── SpideySenseOverlay.java                          ← all 17 visual layers
 └── src/main/resources/
     ├── fabric.mod.json
     └── assets/spideysense/
         ├── icon.png
         └── lang/en_us.json
 ```
-
----
-
-## 🔧 Source code stats
-- **5 Java files** totaling ~67 KB
-- **3 resource files** totaling ~2.4 MB (mostly the icon)
-- All handwritten for this project — no copy-pasted Minecraft code
 
 ---
 
