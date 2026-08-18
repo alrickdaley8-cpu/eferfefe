@@ -8,12 +8,14 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.projectile.ProjectileEntity;
+import net.minecraft.particle.DustParticleEffect;
 import net.minecraft.particle.ParticleTypes;
 import net.minecraft.potion.StatusEffectInstance;
 import net.minecraft.potion.StatusEffects;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.Vec3f;
 
 /**
  * Core game logic for the Spidey Sense ability.
@@ -72,6 +74,11 @@ public final class SpideySenseHandler {
     private static int ticksSinceIncomingCheck = 0;
     private static int ticksSinceLastVibration = 0;
 
+    // ----- "suit" dust particles (Spider-Man red + blue) ----------------------
+    private static final DustParticleEffect SUIT_RED   = new DustParticleEffect(new Vec3f(0.88f, 0.10f, 0.15f), 1.30f);
+    private static final DustParticleEffect SUIT_BLUE  = new DustParticleEffect(new Vec3f(0.10f, 0.22f, 0.90f), 1.30f);
+    private static final DustParticleEffect SUIT_WHITE = new DustParticleEffect(new Vec3f(1.00f, 1.00f, 1.00f), 0.90f);
+
     // ----- charge state --------------------------------------------------------
     private static boolean isCharging = false;
     private static int chargeTicks = 0;
@@ -128,6 +135,15 @@ public final class SpideySenseHandler {
                 timeFrozenByUs = true;
             }
             applyGlowToThreats(world, player);
+
+            // AUTO-DODGE: While spidey sense is active, the player is essentially
+            // untouchable. Resistance 4 gives the max 80% damage reduction from
+            // this effect; Absorption IV adds 8 extra hearts; together they
+            // combine into "the attacks glance off" while spidey sense is on.
+            player.addStatusEffect(new StatusEffectInstance(
+                    StatusEffects.RESISTANCE, 40, 4, false, false, false));
+            player.addStatusEffect(new StatusEffectInstance(
+                    StatusEffects.ABSORPTION, 40, 4, false, false, false));
 
             // Continuous vibration particles while the effect is up.
             ticksSinceLastVibration++;
@@ -223,7 +239,7 @@ public final class SpideySenseHandler {
 
     /** A burst of web/electric sparks around the player on activation. */
     private static void spawnWebBurst(ClientPlayerEntity player, ClientWorld world) {
-        // 80 sparks total: a mix of CRIT (white) and FLAME (orange) particles.
+        // 60 white sparks — web/electric crackling.
         for (int i = 0; i < 60; i++) {
             double angle = Math.random() * Math.PI * 2;
             double dist  = Math.random() * 2.8;
@@ -235,6 +251,7 @@ public final class SpideySenseHandler {
             double vz = Math.sin(angle) * 0.15;
             world.addParticle(ParticleTypes.CRIT, px, py, pz, vx, vy, vz);
         }
+        // 20 orange flames — hot aura.
         for (int i = 0; i < 20; i++) {
             double angle = Math.random() * Math.PI * 2;
             double dist  = Math.random() * 2.0;
@@ -243,10 +260,38 @@ public final class SpideySenseHandler {
             double pz = player.getZ() + Math.sin(angle) * dist;
             world.addParticle(ParticleTypes.FLAME, px, py, pz, 0, 0.1, 0);
         }
+        // 40 red "suit" dust particles converging on the player — the suit powering up.
+        for (int i = 0; i < 25; i++) {
+            double angle = Math.random() * Math.PI * 2;
+            double dist  = 1.5 + Math.random() * 2.5;       // start outside, converge inward
+            double px = player.getX() + Math.cos(angle) * dist;
+            double py = player.getY() + 0.4 + Math.random() * 1.8;
+            double pz = player.getZ() + Math.sin(angle) * dist;
+            double vx = -Math.cos(angle) * 0.20;            // velocity pulls toward player
+            double vy = 0.02 + Math.random() * 0.08;
+            double vz = -Math.sin(angle) * 0.20;
+            world.addParticle(SUIT_RED, px, py, pz, vx, vy, vz);
+        }
+        for (int i = 0; i < 25; i++) {
+            double angle = Math.random() * Math.PI * 2;
+            double dist  = 1.5 + Math.random() * 2.5;
+            double px = player.getX() + Math.cos(angle) * dist;
+            double py = player.getY() + Math.random() * 2.2;
+            double pz = player.getZ() + Math.sin(angle) * dist;
+            double vx = -Math.cos(angle) * 0.20;
+            double vy = 0.02 + Math.random() * 0.08;
+            double vz = -Math.sin(angle) * 0.20;
+            world.addParticle(SUIT_BLUE, px, py, pz, vx, vy, vz);
+        }
     }
 
-    /** Continuous bioelectric vibration particles around the player. */
+    /**
+     * Continuous bioelectric vibration particles around the player — now also
+     * sprinkles red+blue "suit" dust, so the player looks like they're wearing
+     * a glowing Spider-Man suit the whole time spidey sense is active.
+     */
     private static void spawnVibrationParticles(ClientWorld world, PlayerEntity player) {
+        // 4 white sparks.
         for (int i = 0; i < 4; i++) {
             double angle = Math.random() * Math.PI * 2;
             double dist  = 1.3 + Math.random() * 1.0;
@@ -254,6 +299,33 @@ public final class SpideySenseHandler {
             double py = player.getY() + 0.2 + Math.random() * 2.2;
             double pz = player.getZ() + Math.sin(angle) * dist;
             world.addParticle(ParticleTypes.CRIT, px, py, pz, 0, 0.06, 0);
+        }
+        // 3 red suit dust on the upper body (chest area).
+        for (int i = 0; i < 3; i++) {
+            double angle = Math.random() * Math.PI * 2;
+            double dist  = 0.55 + Math.random() * 0.30;
+            double px = player.getX() + Math.cos(angle) * dist;
+            double py = player.getY() + 1.05 + Math.random() * 0.55;
+            double pz = player.getZ() + Math.sin(angle) * dist;
+            world.addParticle(SUIT_RED, px, py, pz, 0, 0.025, 0);
+        }
+        // 3 blue suit dust on the lower body (legs area).
+        for (int i = 0; i < 3; i++) {
+            double angle = Math.random() * Math.PI * 2;
+            double dist  = 0.55 + Math.random() * 0.30;
+            double px = player.getX() + Math.cos(angle) * dist;
+            double py = player.getY() + Math.random() * 0.85;
+            double pz = player.getZ() + Math.sin(angle) * dist;
+            world.addParticle(SUIT_BLUE, px, py, pz, 0, 0.025, 0);
+        }
+        // Occasional white "web" accent.
+        if (Math.random() < 0.25) {
+            double angle = Math.random() * Math.PI * 2;
+            double dist  = 0.6 + Math.random() * 0.4;
+            double px = player.getX() + Math.cos(angle) * dist;
+            double py = player.getY() + Math.random() * 2.0;
+            double pz = player.getZ() + Math.sin(angle) * dist;
+            world.addParticle(SUIT_WHITE, px, py, pz, 0, 0.02, 0);
         }
     }
 
@@ -287,7 +359,11 @@ public final class SpideySenseHandler {
         }
     }
 
-    /** Detect projectiles flying toward the player and warn them. */
+    /**
+     * Detect projectiles flying toward the player. If one is incoming AND close
+     * enough to hit, AUTO-DODGE: apply a perpendicular velocity kick to the
+     * player so they sidestep out of the projectile's path.
+     */
     private static void checkIncomingProjectiles(ClientWorld world, PlayerEntity player) {
         Box box = player.getBoundingBox().expand(40);
         Vec3d playerCenter = player.getPos().add(0, 1, 0);
@@ -301,6 +377,17 @@ public final class SpideySenseHandler {
             // Is the projectile moving toward the player?
             if (vel.dotProduct(toPlayer.normalize()) > 0.4) {
                 SpideySenseComicText.spawnIncoming();
+                // AUTO-DODGE: push the player sideways (perpendicular to projectile
+                // motion) so the projectile sails past them. Only when close
+                // enough to actually threaten a hit.
+                if (dist < 8.0 && activeTicksRemaining > 0) {
+                    Vec3d perp = vel.normalize().rotateY(90).multiply(0.55);
+                    // Choose the dodge direction that's away from the projectile,
+                    // not into it.
+                    if (perp.dotProduct(toPlayer) < 0) perp = perp.multiply(-1);
+                    player.addVelocity(perp.x, 0.10, perp.z);
+                    player.velocityModified = true;
+                }
                 break;   // only warn once per check
             }
         }
