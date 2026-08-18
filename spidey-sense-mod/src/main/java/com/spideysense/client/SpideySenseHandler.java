@@ -51,10 +51,10 @@ public final class SpideySenseHandler {
     public static final int BURST_TICKS = 18;
 
     // Periodic checks.
-    public static final int RANDOM_POP_INTERVAL = 8;
-    public static final int HOSTILE_PARTICLE_INTERVAL = 4;
-    public static final int INCOMING_CHECK_INTERVAL = 5;
-    public static final int VIBRATION_INTERVAL = 2;
+    public static final int RANDOM_POP_INTERVAL = 5;     // maxed: way more pop-ups
+    public static final int HOSTILE_PARTICLE_INTERVAL = 3;
+    public static final int INCOMING_CHECK_INTERVAL = 4;
+    public static final int VIBRATION_INTERVAL = 1;       // every tick during effect
     // ---------------------------------------------------------------------------
 
     // ----- effect lifecycle ----------------------------------------------------
@@ -223,28 +223,37 @@ public final class SpideySenseHandler {
 
     /** A burst of web/electric sparks around the player on activation. */
     private static void spawnWebBurst(ClientPlayerEntity player, ClientWorld world) {
-        for (int i = 0; i < 40; i++) {
+        // 80 sparks total: a mix of CRIT (white) and FLAME (orange) particles.
+        for (int i = 0; i < 60; i++) {
             double angle = Math.random() * Math.PI * 2;
-            double dist  = Math.random() * 2.5;
+            double dist  = Math.random() * 2.8;
             double px = player.getX() + Math.cos(angle) * dist;
-            double py = player.getY() + 0.5 + Math.random() * 2.0;
+            double py = player.getY() + 0.5 + Math.random() * 2.2;
             double pz = player.getZ() + Math.sin(angle) * dist;
-            double vx = Math.cos(angle) * 0.1;
-            double vy = 0.05 + Math.random() * 0.1;
-            double vz = Math.sin(angle) * 0.1;
+            double vx = Math.cos(angle) * 0.15;
+            double vy = 0.05 + Math.random() * 0.15;
+            double vz = Math.sin(angle) * 0.15;
             world.addParticle(ParticleTypes.CRIT, px, py, pz, vx, vy, vz);
+        }
+        for (int i = 0; i < 20; i++) {
+            double angle = Math.random() * Math.PI * 2;
+            double dist  = Math.random() * 2.0;
+            double px = player.getX() + Math.cos(angle) * dist;
+            double py = player.getY() + 0.3 + Math.random() * 1.8;
+            double pz = player.getZ() + Math.sin(angle) * dist;
+            world.addParticle(ParticleTypes.FLAME, px, py, pz, 0, 0.1, 0);
         }
     }
 
     /** Continuous bioelectric vibration particles around the player. */
     private static void spawnVibrationParticles(ClientWorld world, PlayerEntity player) {
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < 4; i++) {
             double angle = Math.random() * Math.PI * 2;
-            double dist  = 1.4 + Math.random() * 0.8;
+            double dist  = 1.3 + Math.random() * 1.0;
             double px = player.getX() + Math.cos(angle) * dist;
-            double py = player.getY() + 0.2 + Math.random() * 2.0;
+            double py = player.getY() + 0.2 + Math.random() * 2.2;
             double pz = player.getZ() + Math.sin(angle) * dist;
-            world.addParticle(ParticleTypes.CRIT, px, py, pz, 0, 0.05, 0);
+            world.addParticle(ParticleTypes.CRIT, px, py, pz, 0, 0.06, 0);
         }
     }
 
@@ -253,13 +262,13 @@ public final class SpideySenseHandler {
         Box box = player.getBoundingBox().expand(DETECT_RADIUS);
         for (Entity e : world.getOtherEntities(player, box,
                 ent -> ent instanceof HostileEntity && ent.isAlive())) {
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < 6; i++) {
                 double angle = Math.random() * Math.PI * 2;
-                double dist  = Math.random() * 1.5;
+                double dist  = Math.random() * 1.6;
                 double px = e.getX() + Math.cos(angle) * dist;
                 double py = e.getY() + 0.2 + Math.random() * e.getHeight();
                 double pz = e.getZ() + Math.sin(angle) * dist;
-                world.addParticle(ParticleTypes.FLAME, px, py, pz, 0, 0.04, 0);
+                world.addParticle(ParticleTypes.FLAME, px, py, pz, 0, 0.05, 0);
             }
         }
     }

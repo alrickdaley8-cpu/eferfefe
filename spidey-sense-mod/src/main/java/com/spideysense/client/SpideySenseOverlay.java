@@ -18,30 +18,36 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * Renders the entire Spider-Verse freeze-frame look while Spidey Sense is active
- * — and the charge-up ring while the player is holding V.
+ * Renders the entire Spider-Verse freeze-frame visual stack — the most
+ * maxed-out version of the spidey sense overlay.
  *
- *   Layer stack (back → front):
- *     1. Subtle red/orange full-screen tint
- *     2. Yellow halftone dot grid (comic-book shading)
- *     3. Procedural bioelectric vein lightning
- *     4. 32 rotating radial speed lines
- *     5. Expanding comic burst ring (on activation)
- *     6. Three-layered red/orange/yellow vignette
- *     7. Brief white flash (on activation)
- *     8. Thick black comic panel border with yellow inner accent
- *     9. Charge-up indicator ring (when holding V to charge)
- *    10. Floating comic pop-ups ("POW!", "WHAM!", "INCOMING!"...)
+ *   Layer stack (back → front, 17 layers):
+ *     1.  Red/orange full-screen tint
+ *     2.  Yellow halftone dot grid (comic-book shading)
+ *     3.  Procedural bioelectric vein lightning
+ *     4.  Vertical sky lightning bolts (NEW)
+ *     5.  48 rotating radial speed lines
+ *     6.  Expanding comic burst ring
+ *     7.  Four-layered red/orange/yellow vignette
+ *     8.  Brief white flash
+ *     9.  Glitch tear bars (NEW)
+ *    10.  Multi-panel horizontal split lines (NEW)
+ *    11.  Thick black comic panel border
+ *    12.  Procedural spider-web corner overlay (NEW)
+ *    13.  Glowing red spider-eyes at top of screen (NEW)
+ *    14.  Procedural spider-logo watermark (NEW)
+ *    15.  Random brightness flickers (NEW)
+ *    16.  Floating comic pop-ups with colour cycling
+ *    17.  Custom web crosshair during effect (NEW)
  *
- *   All transforms (shake + zoom) are applied to this layer only — vanilla
- *   HUD renders normally above us.
+ *   Plus a separate charge-up indicator that draws only while V is held.
  */
 public final class SpideySenseOverlay {
     private SpideySenseOverlay() {}
 
     private static final Random RANDOM = new Random();
 
-    // Cached lightning path buffer so we don't allocate every frame.
+    // Cached lightning path buffer.
     private static final List<float[]> LIGHTNING_SEGMENTS = new ArrayList<>();
     private static long lightningLastSeed = 0;
 
@@ -52,34 +58,59 @@ public final class SpideySenseOverlay {
         boolean active = SpideySenseHandler.isActive();
         boolean charging = SpideySenseHandler.isCharging();
 
-        // Keep drawing while active, while charging, or while a pop-up is fading out.
         if (!(active || charging || SpideySenseComicText.hasLivePops())) return;
 
         ctx.getMatrices().push();
 
-        // Shake (subtle, only while active). Zoom pulse (only while active).
         applyShake(ctx, active);
         applyZoom(ctx, active);
 
         float life = active ? SpideySenseHandler.getActivationProgress() : 0f;
 
         if (active) {
+            // 1. Tint
             renderScreenTint(ctx, life);
+            // 2. Halftone
             renderHalftone(ctx, life);
+            // 3. Bioelectric veins
             renderBioElectricVeins(ctx, life);
+            // 4. Sky lightning
+            renderSkyLightning(ctx, life);
+            // 5. Speed lines
             renderSpeedLines(ctx, life);
+            // 6. Burst ring
             renderBurstRing(ctx, life);
+            // 7. Vignette (four layers)
             renderVignette(ctx, life);
+            // 8. Flash
             renderFlash(ctx, life);
+            // 9. Glitch tears
+            renderGlitchTears(ctx, life);
+            // 10. Multi-panel split
+            renderMultiPanelSplit(ctx, life);
+            // 11. Comic panel border
             renderComicPanelBorder(ctx, life);
+            // 12. Web corners
+            renderWebCorners(ctx, life);
+            // 13. Spider eyes
+            renderSpiderEyes(ctx, life);
+            // 14. Spider logo
+            renderSpiderLogo(ctx, life);
+            // 15. Flicker
+            renderFlicker(ctx, life);
         }
 
         if (charging) {
             renderChargeIndicator(ctx, SpideySenseHandler.getChargeProgress());
         }
 
-        // Comic pop-ups render on top of every other layer.
+        // 16. Comic pop-ups (with colour cycling)
         SpideySenseComicText.render(ctx, client.textRenderer);
+
+        if (active) {
+            // 17. Web crosshair on top of everything
+            renderWebCrosshair(ctx, life);
+        }
 
         ctx.getMatrices().pop();
     }
@@ -90,8 +121,8 @@ public final class SpideySenseOverlay {
         if (!active) return;
         float intensity = SpideySenseHandler.getShakeIntensity();
         if (intensity <= 0f) return;
-        float dx = (RANDOM.nextFloat() - 0.5f) * 7f * intensity;
-        float dy = (RANDOM.nextFloat() - 0.5f) * 7f * intensity;
+        float dx = (RANDOM.nextFloat() - 0.5f) * 8f * intensity;
+        float dy = (RANDOM.nextFloat() - 0.5f) * 8f * intensity;
         ctx.getMatrices().translate(dx, dy, 0);
     }
 
@@ -111,21 +142,16 @@ public final class SpideySenseOverlay {
     private static void renderScreenTint(DrawContext ctx, float life) {
         int w = ctx.getScaledWindowWidth();
         int h = ctx.getScaledWindowHeight();
-        float a = 0.20f * (0.5f + 0.5f * life);
+        float a = 0.22f * (0.5f + 0.5f * life);
         drawFullColouredQuad(ctx, w, h, 0.55f, 0.10f, 0.05f, a);
     }
 
-    // ----------------------------------------------------------------- 2. halftone
+    // ----------------------------------------------------------------- 2. halftone (maxed: denser, brighter, faster pulse)
 
-    /**
-     * A pulsing grid of yellow dots — the classic Spider-Verse "comic-book
-     * shading" effect. Each dot's size and alpha varies with a sine wave so
-     * the field appears to breathe.
-     */
     private static void renderHalftone(DrawContext ctx, float intensity) {
         int w = ctx.getScaledWindowWidth();
         int h = ctx.getScaledWindowHeight();
-        int spacing = 26;
+        int spacing = 22;       // denser
         long time = System.currentTimeMillis();
 
         Matrix4f matrix = ctx.getMatrices().peek().getPositionMatrix();
@@ -134,9 +160,9 @@ public final class SpideySenseOverlay {
 
         for (int x = spacing / 2; x < w; x += spacing) {
             for (int y = spacing / 2; y < h; y += spacing) {
-                float wave = (float) (0.5 + 0.5 * Math.sin((x + y + time / 40.0) / 26.0));
-                float r = 2.2f + wave * 1.8f;
-                float a = intensity * (0.10f + wave * 0.16f);
+                float wave = (float) (0.5 + 0.5 * Math.sin((x + y + time / 30.0) / 22.0));
+                float r = 2.6f + wave * 2.4f;
+                float a = intensity * (0.16f + wave * 0.20f);
                 buf.vertex(matrix, x - r, y - r, 0).color(1f, 0.85f, 0.30f, a);
                 buf.vertex(matrix, x + r, y - r, 0).color(1f, 0.85f, 0.30f, a);
                 buf.vertex(matrix, x + r, y + r, 0).color(1f, 0.85f, 0.30f, a);
@@ -148,26 +174,19 @@ public final class SpideySenseOverlay {
         disableBlend();
     }
 
-    // ----------------------------------------------------------------- 3. bioelectric veins
+    // ----------------------------------------------------------------- 3. bioelectric veins (maxed: more paths, faster regen)
 
-    /**
-     * Regenerate procedural lightning paths every ~80ms and render them as
-     * thick yellow quads arcing across the screen. The seed changes every
-     * frame-tick so the bolts flicker like real bioelectricity.
-     */
     private static void renderBioElectricVeins(DrawContext ctx, float intensity) {
         int w = ctx.getScaledWindowWidth();
         int h = ctx.getScaledWindowHeight();
 
-        // Regenerate lightning paths when the seed changes.
-        long seed = System.currentTimeMillis() / 80;
+        long seed = System.currentTimeMillis() / 60;   // faster regen
         if (seed != lightningLastSeed) {
             lightningLastSeed = seed;
             LIGHTNING_SEGMENTS.clear();
             Random rng = new Random(seed);
-            int numPaths = 6;
+            int numPaths = 10;                           // more paths
             for (int p = 0; p < numPaths; p++) {
-                // Start from a random edge.
                 float x, y;
                 int edge = rng.nextInt(4);
                 switch (edge) {
@@ -177,10 +196,10 @@ public final class SpideySenseOverlay {
                     default: x = w;                              y = rng.nextFloat() * h;
                 }
                 float startX = x, startY = y;
-                int segments = 8 + rng.nextInt(10);
+                int segments = 9 + rng.nextInt(10);
                 for (int s = 0; s < segments; s++) {
-                    float dx = (rng.nextFloat() - 0.5f) * 110f;
-                    float dy = (rng.nextFloat() - 0.5f) * 110f;
+                    float dx = (rng.nextFloat() - 0.5f) * 120f;
+                    float dy = (rng.nextFloat() - 0.5f) * 120f;
                     float endX = clamp(x + dx, 0, w);
                     float endY = clamp(y + dy, 0, h);
                     LIGHTNING_SEGMENTS.add(new float[]{startX, startY, endX, endY});
@@ -198,27 +217,63 @@ public final class SpideySenseOverlay {
         enablePositionColourBlend();
         BufferBuilder buf = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
 
-        float thickness = 2.2f;
-        float a = intensity * 0.85f;
+        float a = intensity * 0.90f;
         for (float[] seg : LIGHTNING_SEGMENTS) {
-            addThickLine(buf, matrix, seg[0], seg[1], seg[2], seg[3], thickness, 1f, 0.95f, 0.30f, a);
+            addThickLine(buf, matrix, seg[0], seg[1], seg[2], seg[3], 2.4f, 1f, 0.95f, 0.30f, a);
         }
-        // Second pass: brighter, thinner core for that "glowing lightning" feel.
-        thickness = 0.9f;
-        a = intensity * 0.95f;
+        a = intensity * 0.98f;
         for (float[] seg : LIGHTNING_SEGMENTS) {
-            addThickLine(buf, matrix, seg[0], seg[1], seg[2], seg[3], thickness, 1f, 1f, 0.85f, a);
+            addThickLine(buf, matrix, seg[0], seg[1], seg[2], seg[3], 1.0f, 1f, 1f, 0.85f, a);
         }
 
         BufferRenderer.drawWithGlobalProgram(buf.end());
         disableBlend();
     }
 
-    private static float clamp(float v, float min, float max) {
-        return Math.max(min, Math.min(max, v));
+    // ----------------------------------------------------------------- 4. sky lightning bolts (NEW)
+
+    private static final List<float[]> SKY_LIGHTNING = new ArrayList<>();
+    private static long skyLightningSeed = 0;
+
+    private static void renderSkyLightning(DrawContext ctx, float intensity) {
+        int w = ctx.getScaledWindowWidth();
+        int h = ctx.getScaledWindowHeight();
+        long seed = System.currentTimeMillis() / 130;
+        if (seed != skyLightningSeed) {
+            skyLightningSeed = seed;
+            SKY_LIGHTNING.clear();
+            Random rng = new Random(seed);
+            int bolts = 1 + rng.nextInt(2);
+            for (int i = 0; i < bolts; i++) {
+                float x = rng.nextFloat() * w;
+                float boltLength = h * (0.30f + rng.nextFloat() * 0.40f);
+                float segments = 6 + rng.nextInt(5);
+                float stepY = boltLength / segments;
+                float curX = x, curY = 0;
+                for (int j = 0; j < segments; j++) {
+                    float nextX = curX + (rng.nextFloat() - 0.5f) * 90f;
+                    float nextY = curY + stepY;
+                    SKY_LIGHTNING.add(new float[]{curX, curY, nextX, nextY});
+                    curX = nextX;
+                    curY = nextY;
+                }
+            }
+        }
+        if (SKY_LIGHTNING.isEmpty()) return;
+
+        Matrix4f matrix = ctx.getMatrices().peek().getPositionMatrix();
+        enablePositionColourBlend();
+        BufferBuilder buf = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
+
+        for (float[] seg : SKY_LIGHTNING) {
+            addThickLine(buf, matrix, seg[0], seg[1], seg[2], seg[3], 4.5f, 1f, 0.95f, 0.40f, intensity * 0.65f);
+            addThickLine(buf, matrix, seg[0], seg[1], seg[2], seg[3], 1.8f, 1f, 1f, 0.85f, intensity * 0.95f);
+        }
+        BufferRenderer.drawWithGlobalProgram(buf.end());
+        disableBlend();
     }
 
-    // ----------------------------------------------------------------- 4. speed lines
+    // ----------------------------------------------------------------- 5. speed lines (maxed: more lines, faster rotation)
 
     private static void renderSpeedLines(DrawContext ctx, float life) {
         int w = ctx.getScaledWindowWidth();
@@ -226,12 +281,12 @@ public final class SpideySenseOverlay {
         float cx = w / 2f, cy = h / 2f;
         float minDim = Math.min(w, h);
         float innerR = minDim * 0.08f;
-        float outerR = minDim * 0.55f;
+        float outerR = minDim * 0.58f;
 
-        int lines = 32;
+        int lines = 48;
         float pulse = (float) (0.65 + 0.35 * Math.sin(System.currentTimeMillis() / 220.0));
-        float intensity = (0.35f + 0.65f * life) * pulse;
-        float rotation = (System.currentTimeMillis() / 4000f) % 360f;
+        float intensity = (0.40f + 0.60f * life) * pulse;
+        float rotation = (System.currentTimeMillis() / 2800f) % 360f;   // faster
 
         Matrix4f matrix = ctx.getMatrices().peek().getPositionMatrix();
         enablePositionColourBlend();
@@ -240,7 +295,7 @@ public final class SpideySenseOverlay {
         for (int i = 0; i < lines; i++) {
             float angle = (float) Math.toRadians((i * 360f / lines) + rotation);
             float perp = angle + (float) Math.PI / 2f;
-            float lineWidth = 2.5f + (float) Math.sin(System.currentTimeMillis() / 200.0 + i) * 1.2f;
+            float lineWidth = 2.8f + (float) Math.sin(System.currentTimeMillis() / 200.0 + i) * 1.4f;
             float cos = (float) Math.cos(angle);
             float sin = (float) Math.sin(angle);
             float cosP = (float) Math.cos(perp);
@@ -255,7 +310,7 @@ public final class SpideySenseOverlay {
             float x4 = cx + cos * outerR + cosP * lineWidth / 2f;
             float y4 = cy + sin * outerR + sinP * lineWidth / 2f;
 
-            float a = intensity * 0.55f;
+            float a = intensity * 0.60f;
             buf.vertex(matrix, x1, y1, 0).color(1f, 0.95f, 0.65f, a);
             buf.vertex(matrix, x2, y2, 0).color(1f, 0.95f, 0.65f, a);
             buf.vertex(matrix, x3, y3, 0).color(1f, 0.95f, 0.65f, 0f);
@@ -266,7 +321,7 @@ public final class SpideySenseOverlay {
         disableBlend();
     }
 
-    // ----------------------------------------------------------------- 5. burst ring
+    // ----------------------------------------------------------------- 6. burst ring (double ring for impact)
 
     private static void renderBurstRing(DrawContext ctx, float life) {
         float t = SpideySenseHandler.getBurstProgress();
@@ -276,10 +331,13 @@ public final class SpideySenseOverlay {
         int h = ctx.getScaledWindowHeight();
         float cx = w / 2f, cy = h / 2f;
         float maxRadius = (float) Math.hypot(w, h) / 2f;
-        float radius = t * maxRadius * 0.95f;
-        float thickness = 6f + t * 90f;
-        float alpha = (1f - t) * 0.75f;
 
+        // Render two concentric rings for max impact.
+        drawRing(ctx, cx, cy, t * maxRadius * 0.95f, 6f + t * 90f, (1f - t) * 0.75f);
+        drawRing(ctx, cx, cy, t * maxRadius * 0.70f, 3f + t * 50f, (1f - t) * 0.55f);
+    }
+
+    private static void drawRing(DrawContext ctx, float cx, float cy, float radius, float thickness, float alpha) {
         int segments = 80;
         Matrix4f matrix = ctx.getMatrices().peek().getPositionMatrix();
         enablePositionColourBlend();
@@ -290,31 +348,31 @@ public final class SpideySenseOverlay {
             float a2 = (float) ((i + 1) * 2 * Math.PI / segments);
             float cos1 = (float) Math.cos(a1), sin1 = (float) Math.sin(a1);
             float cos2 = (float) Math.cos(a2), sin2 = (float) Math.sin(a2);
-            buf.vertex(matrix, cx + cos1 * radius,                   cy + sin1 * radius,                   0).color(1f, 0.95f, 0.55f, alpha);
-            buf.vertex(matrix, cx + cos2 * radius,                   cy + sin2 * radius,                   0).color(1f, 0.95f, 0.55f, alpha);
-            buf.vertex(matrix, cx + cos2 * (radius + thickness),     cy + sin2 * (radius + thickness),     0).color(1f, 0.70f, 0.10f, 0f);
-            buf.vertex(matrix, cx + cos1 * (radius + thickness),     cy + sin1 * (radius + thickness),     0).color(1f, 0.70f, 0.10f, 0f);
+            buf.vertex(matrix, cx + cos1 * radius,                 cy + sin1 * radius,                 0).color(1f, 0.95f, 0.55f, alpha);
+            buf.vertex(matrix, cx + cos2 * radius,                 cy + sin2 * radius,                 0).color(1f, 0.95f, 0.55f, alpha);
+            buf.vertex(matrix, cx + cos2 * (radius + thickness),   cy + sin2 * (radius + thickness),   0).color(1f, 0.70f, 0.10f, 0f);
+            buf.vertex(matrix, cx + cos1 * (radius + thickness),   cy + sin1 * (radius + thickness),   0).color(1f, 0.70f, 0.10f, 0f);
         }
-
         BufferRenderer.drawWithGlobalProgram(buf.end());
         disableBlend();
     }
 
-    // ----------------------------------------------------------------- 6. vignette
+    // ----------------------------------------------------------------- 7. vignette (4 layers, brighter)
 
     private static void renderVignette(DrawContext ctx, float life) {
         int w = ctx.getScaledWindowWidth();
         int h = ctx.getScaledWindowHeight();
         float pulse = (float) (0.55 + 0.45 * Math.sin(System.currentTimeMillis() / 180.0));
-        float baseAlpha = 0.75f * (0.4f + 0.6f * life) * pulse;
+        float baseAlpha = 0.85f * (0.4f + 0.6f * life) * pulse;
 
         enablePositionColourBlend();
         Matrix4f matrix = ctx.getMatrices().peek().getPositionMatrix();
         Tessellator tess = Tessellator.getInstance();
 
-        renderVignettePass(tess, matrix, w, h, baseAlpha * 0.55f, 0.22f, 0.95f, 0.18f, 0.05f);
-        renderVignettePass(tess, matrix, w, h, baseAlpha * 0.95f, 0.12f, 1.00f, 0.10f, 0.05f);
-        renderVignettePass(tess, matrix, w, h, baseAlpha * 0.50f, 0.06f, 1.00f, 0.85f, 0.20f);
+        renderVignettePass(tess, matrix, w, h, baseAlpha * 0.50f, 0.28f, 0.90f, 0.20f, 0.05f);
+        renderVignettePass(tess, matrix, w, h, baseAlpha * 0.95f, 0.18f, 1.00f, 0.10f, 0.05f);
+        renderVignettePass(tess, matrix, w, h, baseAlpha * 0.75f, 0.10f, 1.00f, 0.30f, 0.05f);
+        renderVignettePass(tess, matrix, w, h, baseAlpha * 0.55f, 0.06f, 1.00f, 0.85f, 0.20f);
 
         disableBlend();
     }
@@ -342,36 +400,86 @@ public final class SpideySenseOverlay {
         buf.vertex(m, x4, y4, 0).color(r, g, b, 0f);
     }
 
-    // ----------------------------------------------------------------- 7. flash
+    // ----------------------------------------------------------------- 8. flash (maxed: brighter)
 
     private static void renderFlash(DrawContext ctx, float life) {
         float t = SpideySenseHandler.getFlashProgress();
         if (t <= 0f) return;
         int w = ctx.getScaledWindowWidth();
         int h = ctx.getScaledWindowHeight();
-        float a = (float) Math.pow(t, 1.5) * 0.55f;
+        float a = (float) Math.pow(t, 1.4) * 0.75f;
         drawFullColouredQuad(ctx, w, h, 1f, 1f, 1f, a);
     }
 
-    // ----------------------------------------------------------------- 8. comic panel border
+    // ----------------------------------------------------------------- 9. glitch tears (NEW)
 
     /**
-     * A thick black border around the screen with a thin yellow inner accent.
-     * This frames the view like a comic-book panel, reinforcing the visual
-     * style during the effect.
+     * Random horizontal "tear" bars across the screen — mimics the
+     * screen-tear glitch effect from Spider-Verse frame transitions.
+     * Regenerated every ~60ms.
      */
+    private static void renderGlitchTears(DrawContext ctx, float intensity) {
+        if (intensity <= 0f) return;
+        int w = ctx.getScaledWindowWidth();
+        int h = ctx.getScaledWindowHeight();
+
+        long seed = System.currentTimeMillis() / 60;
+        Random rng = new Random(seed);
+        int tears = 2 + rng.nextInt(3);
+
+        for (int i = 0; i < tears; i++) {
+            int y = rng.nextInt(h);
+            int tearH = 3 + rng.nextInt(10);
+            ctx.fill(0, y, w, y + tearH, 0xDD000000);
+            // Occasional colored ghost
+            if (rng.nextFloat() < 0.35f) {
+                int offset = (rng.nextInt(60) - 30);
+                int ghost = rng.nextFloat() < 0.5f ? 0x66FF0000 : 0x66FFFF00;
+                int left = Math.max(0, offset);
+                int right = Math.min(w, w + offset);
+                if (right > left) ctx.fill(left, y + 1, right, y + tearH - 1, ghost);
+            }
+        }
+    }
+
+    // ----------------------------------------------------------------- 10. multi-panel split (NEW)
+
+    /**
+     * Two horizontal black lines that drift slowly up and down, dividing the
+     * screen into 3 comic-book panels. Pure Spider-Verse.
+     */
+    private static void renderMultiPanelSplit(DrawContext ctx, float intensity) {
+        if (intensity <= 0f) return;
+        int w = ctx.getScaledWindowWidth();
+        int h = ctx.getScaledWindowHeight();
+        int t = 5;
+        long time = System.currentTimeMillis();
+
+        float line1Y = h * 0.33f + 30f * (float) Math.sin(time / 400.0);
+        float line2Y = h * 0.66f + 30f * (float) Math.sin(time / 350.0 + 1);
+
+        ctx.fill(0, (int) (line1Y - t / 2), w, (int) (line1Y + t / 2), 0xFF000000);
+        ctx.fill(0, (int) (line2Y - t / 2), w, (int) (line2Y + t / 2), 0xFF000000);
+
+        // Thin yellow accent just under each line.
+        int accent = 0x88FFFF00;
+        ctx.fill(0, (int) (line1Y + t / 2), w, (int) (line1Y + t / 2 + 2), accent);
+        ctx.fill(0, (int) (line2Y + t / 2), w, (int) (line2Y + t / 2 + 2), accent);
+    }
+
+    // ----------------------------------------------------------------- 11. comic panel border
+
     private static void renderComicPanelBorder(DrawContext ctx, float intensity) {
         if (intensity <= 0f) return;
         int w = ctx.getScaledWindowWidth();
         int h = ctx.getScaledWindowHeight();
-        int t = 10;
+        int t = 12;
         int aa = 0xFF000000;
         ctx.fill(0, 0, w, t, aa);
         ctx.fill(0, h - t, w, h, aa);
         ctx.fill(0, 0, t, h, aa);
         ctx.fill(w - t, 0, w, h, aa);
 
-        // Yellow accent line just inside the border.
         int accent = 0xFFFFAA00;
         ctx.fill(t, t, w - t, t + 2, accent);
         ctx.fill(t, h - t - 2, w - t, h - t, accent);
@@ -379,20 +487,154 @@ public final class SpideySenseOverlay {
         ctx.fill(w - t - 2, t, w - t, h - t, accent);
     }
 
-    // ----------------------------------------------------------------- 9. charge indicator
+    // ----------------------------------------------------------------- 12. web corners (NEW)
 
     /**
-     * A glowing yellow ring that converges from the screen edges toward the
-     * centre as the player holds V. At max charge it reaches the centre and
-     * flashes brightly.
+     * Procedural spider-web arcs in each corner of the screen. Pure cosmetic
+     * frame, doesn't interfere with gameplay.
      */
+    private static void renderWebCorners(DrawContext ctx, float intensity) {
+        if (intensity <= 0f) return;
+        int w = ctx.getScaledWindowWidth();
+        int h = ctx.getScaledWindowHeight();
+        float size = 70f;
+        float alpha = intensity * 0.55f;
+
+        Matrix4f matrix = ctx.getMatrices().peek().getPositionMatrix();
+        enablePositionColourBlend();
+        BufferBuilder buf = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
+
+        drawWebCorner(buf, matrix, 0, 0, size, 1, 1, alpha);
+        drawWebCorner(buf, matrix, w, 0, size, -1, 1, alpha);
+        drawWebCorner(buf, matrix, 0, h, size, 1, -1, alpha);
+        drawWebCorner(buf, matrix, w, h, size, -1, -1, alpha);
+
+        BufferRenderer.drawWithGlobalProgram(buf.end());
+        disableBlend();
+    }
+
+    private static void drawWebCorner(BufferBuilder buf, Matrix4f m, float cornerX, float cornerY,
+                                       float size, float dirX, float dirY, float alpha) {
+        // 4 concentric arcs.
+        int numArcs = 4;
+        float arcSpan = (float) Math.PI / 2f;
+        for (int i = 0; i < numArcs; i++) {
+            float r = size * (0.30f + i * 0.18f);
+            int segments = 20;
+            for (int j = 0; j < segments; j++) {
+                float a1 = j * arcSpan / segments;
+                float a2 = (j + 1) * arcSpan / segments;
+                float x1 = cornerX + dirX * (float) Math.cos(a1) * r;
+                float y1 = cornerY + dirY * (float) Math.sin(a1) * r;
+                float x2 = cornerX + dirX * (float) Math.cos(a2) * r;
+                float y2 = cornerY + dirY * (float) Math.sin(a2) * r;
+                addThickLine(buf, m, x1, y1, x2, y2, 1.6f, 1f, 0.92f, 0.30f, alpha);
+            }
+        }
+        // Radial spokes.
+        int numSpokes = 6;
+        for (int i = 0; i < numSpokes; i++) {
+            float a = i * arcSpan / (numSpokes - 1);
+            float x1 = cornerX + dirX * (float) Math.cos(a) * size * 0.18f;
+            float y1 = cornerY + dirY * (float) Math.sin(a) * size * 0.18f;
+            float x2 = cornerX + dirX * (float) Math.cos(a) * size;
+            float y2 = cornerY + dirY * (float) Math.sin(a) * size;
+            addThickLine(buf, m, x1, y1, x2, y2, 1.6f, 1f, 0.92f, 0.30f, alpha);
+        }
+    }
+
+    // ----------------------------------------------------------------- 13. spider eyes (NEW)
+
+    /**
+     * Two glowing red spider-eyes at the top-centre of the screen, pulsing
+     * rapidly. Pulses brighter as the effect wears on.
+     */
+    private static void renderSpiderEyes(DrawContext ctx, float intensity) {
+        if (intensity <= 0.4f) return;
+        int w = ctx.getScaledWindowWidth();
+        int cx = w / 2;
+        int cy = 56;
+        int spacing = 26;
+        int eyeR = 14;
+
+        float pulse = 0.55f + 0.45f * (float) Math.sin(System.currentTimeMillis() / 90.0);
+        float alpha = intensity * 0.80f * pulse;
+
+        Matrix4f matrix = ctx.getMatrices().peek().getPositionMatrix();
+        enablePositionColourBlend();
+        BufferBuilder buf = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
+
+        addFilledDisc(buf, matrix, cx - spacing, cy, eyeR, 1f, 0.10f, 0.05f, alpha);
+        addFilledDisc(buf, matrix, cx + spacing, cy, eyeR, 1f, 0.10f, 0.05f, alpha);
+
+        BufferRenderer.drawWithGlobalProgram(buf.end());
+        disableBlend();
+    }
+
+    // ----------------------------------------------------------------- 14. spider logo (NEW)
+
+    /**
+     * Procedural yellow spider-logo watermark in the bottom-right corner,
+     * pulsing gently. Body + 8 radiating legs.
+     */
+    private static void renderSpiderLogo(DrawContext ctx, float intensity) {
+        if (intensity <= 0.5f) return;
+        int w = ctx.getScaledWindowWidth();
+        int h = ctx.getScaledWindowHeight();
+        int size = 52;
+        int cx = w - size - 18;
+        int cy = h - size - 18;
+
+        float pulse = 0.7f + 0.3f * (float) Math.sin(System.currentTimeMillis() / 220.0);
+        float alpha = intensity * 0.70f * pulse;
+
+        Matrix4f matrix = ctx.getMatrices().peek().getPositionMatrix();
+        enablePositionColourBlend();
+        BufferBuilder buf = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
+
+        // Body — filled small disc.
+        addFilledDisc(buf, matrix, cx, cy, 8f, 1f, 0.92f, 0.23f, alpha);
+
+        // 8 radiating legs.
+        for (int i = 0; i < 8; i++) {
+            float angle = (float) (i * Math.PI / 4f);
+            float x1 = cx + (float) Math.cos(angle) * 7f;
+            float y1 = cy + (float) Math.sin(angle) * 7f;
+            float x2 = cx + (float) Math.cos(angle) * 22f;
+            float y2 = cy + (float) Math.sin(angle) * 22f;
+            addThickLine(buf, matrix, x1, y1, x2, y2, 3.0f, 1f, 0.92f, 0.23f, alpha);
+            // little bend at the end of each leg
+            float bendA = angle + 0.5f * (i % 2 == 0 ? 1 : -1);
+            float bx = x2 + (float) Math.cos(bendA) * 4f;
+            float by = y2 + (float) Math.sin(bendA) * 4f;
+            addThickLine(buf, matrix, x2, y2, bx, by, 2.5f, 1f, 0.92f, 0.23f, alpha);
+        }
+
+        BufferRenderer.drawWithGlobalProgram(buf.end());
+        disableBlend();
+    }
+
+    // ----------------------------------------------------------------- 15. flicker (NEW)
+
+    private static void renderFlicker(DrawContext ctx, float intensity) {
+        long seed = System.currentTimeMillis() / 70;
+        Random rng = new Random(seed);
+        if (rng.nextFloat() < 0.20f) {
+            int w = ctx.getScaledWindowWidth();
+            int h = ctx.getScaledWindowHeight();
+            float a = intensity * (0.06f + rng.nextFloat() * 0.10f);
+            drawFullColouredQuad(ctx, w, h, 1f, 0.95f, 0.85f, a);
+        }
+    }
+
+    // ----------------------------------------------------------------- charge indicator
+
     private static void renderChargeIndicator(DrawContext ctx, float charge) {
         if (charge <= 0f) return;
         int w = ctx.getScaledWindowWidth();
         int h = ctx.getScaledWindowHeight();
         float cx = w / 2f, cy = h / 2f;
         float minDim = Math.min(w, h);
-        // Ring radius shrinks from outer screen inward as charge grows.
         float radius = minDim * 0.48f * (1f - charge);
         float thickness = 4f + charge * 8f;
         float alpha = 0.55f + 0.4f * charge;
@@ -418,14 +660,48 @@ public final class SpideySenseOverlay {
         BufferRenderer.drawWithGlobalProgram(buf.end());
         disableBlend();
 
-        // When fully charged, pulse a thin white core ring.
         if (maxed) {
-            float corePulse = 0.5f + 0.5f * (float) Math.sin(System.currentTimeMillis() / 60.0);
-            ctx.fill(0, 0, w, 4, 0xFFFFFFFF);                                  // top
-            ctx.fill(0, h - 4, w, h, 0xFFFFFFFF);                              // bottom
-            ctx.fill(0, 0, 4, h, 0xFFFFFFFF);                                  // left
-            ctx.fill(w - 4, 0, w, h, 0xFFFFFFFF);                              // right
+            ctx.fill(0, 0, w, 4, 0xFFFFFFFF);
+            ctx.fill(0, h - 4, w, h, 0xFFFFFFFF);
+            ctx.fill(0, 0, 4, h, 0xFFFFFFFF);
+            ctx.fill(w - 4, 0, w, h, 0xFFFFFFFF);
         }
+    }
+
+    // ----------------------------------------------------------------- 17. web crosshair (NEW)
+
+    /**
+     * A bright yellow spider-web crosshair drawn over the centre of the screen
+     * while the effect is active. 4 cardinal + 4 diagonal spokes + a glow ring.
+     */
+    private static void renderWebCrosshair(DrawContext ctx, float intensity) {
+        if (intensity <= 0.3f) return;
+        int w = ctx.getScaledWindowWidth();
+        int h = ctx.getScaledWindowHeight();
+        float cx = w / 2f, cy = h / 2f;
+        float size = 14f;
+        float thickness = 2.2f;
+        float pulse = 0.7f + 0.3f * (float) Math.sin(System.currentTimeMillis() / 120.0);
+        float alpha = intensity * 0.85f * pulse;
+
+        Matrix4f matrix = ctx.getMatrices().peek().getPositionMatrix();
+        enablePositionColourBlend();
+        BufferBuilder buf = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
+
+        // 8 spokes.
+        for (int i = 0; i < 8; i++) {
+            float angle = (float) (i * Math.PI / 4f);
+            float x1 = cx + (float) Math.cos(angle) * 3f;
+            float y1 = cy + (float) Math.sin(angle) * 3f;
+            float x2 = cx + (float) Math.cos(angle) * size;
+            float y2 = cy + (float) Math.sin(angle) * size;
+            addThickLine(buf, matrix, x1, y1, x2, y2, thickness, 1f, 0.92f, 0.30f, alpha);
+        }
+        // Glow ring at centre.
+        addFilledDisc(buf, matrix, cx, cy, 3.5f, 1f, 0.95f, 0.30f, alpha * 0.85f);
+
+        BufferRenderer.drawWithGlobalProgram(buf.end());
+        disableBlend();
     }
 
     // ----------------------------------------------------------------- helpers
@@ -468,5 +744,24 @@ public final class SpideySenseOverlay {
         buf.vertex(m, x1 - nx, y1 - ny, 0).color(r, g, b, a);
         buf.vertex(m, x2 - nx, y2 - ny, 0).color(r, g, b, a);
         buf.vertex(m, x2 + nx, y2 + ny, 0).color(r, g, b, a);
+    }
+
+    /** Render a filled disc (triangle-fan as quads). */
+    private static void addFilledDisc(BufferBuilder buf, Matrix4f m,
+                                      float cx, float cy, float radius,
+                                      float r, float g, float b, float a) {
+        int segments = 20;
+        for (int i = 0; i < segments; i++) {
+            float a1 = (float) (i * 2 * Math.PI / segments);
+            float a2 = (float) ((i + 1) * 2 * Math.PI / segments);
+            buf.vertex(m, cx, cy, 0).color(r, g, b, a);
+            buf.vertex(m, cx + (float) Math.cos(a1) * radius, cy + (float) Math.sin(a1) * radius, 0).color(r, g, b, a);
+            buf.vertex(m, cx + (float) Math.cos(a2) * radius, cy + (float) Math.sin(a2) * radius, 0).color(r, g, b, a);
+            buf.vertex(m, cx + (float) Math.cos(a2) * radius * 0.5f, cy + (float) Math.sin(a2) * radius * 0.5f, 0).color(r, g, b, a);
+        }
+    }
+
+    private static float clamp(float v, float min, float max) {
+        return Math.max(min, Math.min(max, v));
     }
 }

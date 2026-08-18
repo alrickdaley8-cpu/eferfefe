@@ -26,12 +26,17 @@ public final class SpideySenseComicText {
     private static final String[] ACTION_WORDS = {
             "POW!", "WHAM!", "BAM!", "ZAP!", "ZOWIE!", "CRACK!",
             "BOOM!", "THWIP!", "TINGLE!", "BZZZT!", "SNAP!",
-            "CRACKLE!", "KAPOW!", "BIFF!", "DANGER!"
+            "CRACKLE!", "KAPOW!", "BIFF!", "DANGER!", "WHOOSH!",
+            "ZING!", "FWOOSH!", "BLAM!", "SOCK!", "BONK!",
+            "WHIP!", "CRACK-BOOM!", "SHAZAM!", "KAZAM!",
+            "YEOW!", "OUCH!", "ZONK!", "KERPOW!"
     };
 
     // Big title words that announce the ability when it activates.
     private static final String[] TITLE_WORDS = {
-            "SPIDER-SENSE!", "TINGLING!", "DANGER!", "WEB OF AWARENESS!"
+            "SPIDER-SENSE!", "TINGLING!", "DANGER!", "WEB OF AWARENESS!",
+            "BIO-ELECTRIC!", "VENOM STING!", "WIT'S END!",
+            "AWARENESS!"
     };
 
     // Classic comic-book colours. Pops pick one at random.
@@ -62,10 +67,13 @@ public final class SpideySenseComicText {
         // Bias toward the upper-middle / left-right so it doesn't sit on the hotbar.
         float x = sw * (0.18f + RANDOM.nextFloat() * 0.64f);
         float y = sh * (0.18f + RANDOM.nextFloat() * 0.45f);
-        float scale = 1.6f + RANDOM.nextFloat() * 1.2f;       // 1.6 – 2.8
-        float rotation = (RANDOM.nextFloat() - 0.5f) * 28f;   // ±14°
+        // 25% chance of a bigger "big pop" (closer to title size).
+        float scale = RANDOM.nextFloat() < 0.25f
+                ? 2.6f + RANDOM.nextFloat() * 1.0f
+                : 1.7f + RANDOM.nextFloat() * 1.3f;
+        float rotation = (RANDOM.nextFloat() - 0.5f) * 32f;   // ±16°
         int colour = COMIC_COLOURS[RANDOM.nextInt(COMIC_COLOURS.length)];
-        POPS.add(new Pop(text, x, y, colour, scale, rotation, 22, false));
+        POPS.add(new Pop(text, x, y, colour, scale, rotation, 24, false));
     }
 
     /** Spawn a "DODGED!" type pop-up on deactivation. */
@@ -116,7 +124,14 @@ public final class SpideySenseComicText {
             float progress = (float) p.age / p.maxAge;
             float scale = p.isTitle ? titleScale(progress) : actionScale(progress);
             if (scale <= 0.001f) continue;
-            drawComicText(ctx, tr, p.text, p.x, p.y, p.colour, scale, p.rotation);
+            // Colour-cycling: pulse the brightness so the comic words appear to
+            // throb like they're vibrating with bioelectric energy.
+            float pulse = 0.85f + 0.15f * (float) Math.sin(System.currentTimeMillis() / 90.0 + p.age * 0.4);
+            int rgb = p.colour & 0x00FFFFFF;
+            int shifted = (p.colour & 0xFF000000) | ((int) (((rgb >> 16) & 0xFF) * pulse) << 16)
+                                          | ((int) (((rgb >> 8)  & 0xFF) * pulse) << 8)
+                                          | ((int) ((rgb         & 0xFF) * pulse));
+            drawComicText(ctx, tr, p.text, p.x, p.y, shifted, scale, p.rotation);
         }
     }
 

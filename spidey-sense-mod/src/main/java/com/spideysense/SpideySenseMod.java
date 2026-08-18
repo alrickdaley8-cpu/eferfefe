@@ -10,28 +10,35 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Spidey Sense Mod
+ * Spidey Sense Mod — MAXED OUT
  *
  * Inspired by Miles Morales' spider-sense from the Spider-Verse films.
  *
  *  HOLD-TO-CHARGE: hold V to charge up your bioelectric spidey sense.
  *  Release to trigger. Longer hold = longer effect, longer cooldown.
  *
- *  While active:
- *   - Time freezes for everyone except you
- *   - Hostile mobs within 30 blocks glow red through walls
- *   - Comic-book pop-ups ("POW!", "WHAM!", "THWIP!", "BAM!", "INCOMING!"...) explode
- *   - A giant "SPIDER-SENSE!" title splash appears
- *   - Yellow halftone dot pattern (comic-book shading)
- *   - Bioelectric vein lightning flickering across the screen
- *   - Rotating radial speed lines
- *   - Expanding comic burst ring + brief white flash
- *   - Three-layered red/orange/yellow vignette
- *   - Subtle red/orange screen tint, screen shake, zoom pulse
- *   - Thick black comic panel border with yellow inner accent
- *   - Red flames around detected hostiles
- *   - Continuous vibration particles around the player
- *   - "INCOMING!" warning when a projectile is flying at you
+ *  While active, 17 visual layers stack back-to-front:
+ *   1. Red/orange danger tint
+ *   2. Yellow halftone dot field (comic-book shading)
+ *   3. Bioelectric vein lightning
+ *   4. Vertical sky lightning bolts
+ *   5. 48 rotating radial speed lines
+ *   6. Double expanding comic burst rings
+ *   7. Four-layered red/orange/yellow vignette
+ *   8. White activation flash
+ *   9. Glitch-tear screen-tear bars
+ *  10. Two horizontal multi-panel split lines
+ *  11. Thick black comic panel border + yellow accent
+ *  12. Procedural spider-web corner overlay
+ *  13. Glowing red spider eyes at top of screen
+ *  14. Spider-logo watermark in corner
+ *  15. Random brightness flickers
+ *  16. Floating comic pop-ups with colour cycling
+ *  17. Custom yellow spider-web crosshair
+ *
+ *  Plus: time freeze, glowing hostiles, "INCOMING!" projectile warning,
+ *  web-burst particles, hostile flame particles, bioelectric vibration
+ *  particles, charge-up sound tick, screen shake, zoom pulse.
  *
  * Cost: 1 hunger point (full charge) in survival. Cooldown: 30s (full charge).
  */
