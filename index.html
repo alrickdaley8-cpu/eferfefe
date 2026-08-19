@@ -46,6 +46,11 @@ pre{background:#0d121a;border:1px solid var(--line);border-radius:12px;padding:1
 .turn .ctx span,.turn .think span{display:block;font-size:10.5px;text-transform:uppercase;
  letter-spacing:.6px;color:var(--accent2);margin-bottom:3px}
 .turn .a{margin-top:8px;white-space:pre-wrap}
+.turn .vb{margin-top:9px;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;
+ display:inline-block;border:1px solid;border-radius:999px;padding:2px 9px}
+.turn .vb.ok{color:var(--accent);border-color:#5eead444}
+.turn .vb.corrected{color:#fbbf24;border-color:#fbbf2444}
+.turn .vb.unchecked{color:var(--dim);border-color:#8b98ad44}
 .flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
 .flowstep{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;
  font-size:13px}
@@ -167,10 +172,10 @@ retrieval-grounded chain-of-thought reasoning — all trained on <b>2 CPU cores<
   <span class="badge"><b>8192</b> vocab</span>
   <span class="badge"><b>512</b> context</span>
   <span class="badge">RoPE · SwiGLU · RMSNorm · tied embeddings</span>
-  <span class="badge">updated 2026-08-19 18:38 UTC</span>
+  <span class="badge">updated 2026-08-19 18:54 UTC</span>
 </div>
 
-<div class="cards"><div class="stat"><div class="k">parameters</div><div class="v">5,015,808</div><div class="s">4 layers · d=256 · 8 heads · RoPE · SwiGLU</div></div><div class="stat"><div class="k">pretraining</div><div class="v">0.0M / 100M</div><div class="s">tokens of PyPI source text</div></div><div class="stat"><div class="k">val loss</div><div class="v">—</div><div class="s"></div></div><div class="stat"><div class="k">knowledge base</div><div class="v">11,922</div><div class="s">packages available to retrieval</div></div><div class="stat"><div class="k">instruction data</div><div class="v">288k examples</div><div class="s">146k QA + 142.5k chain-of-thought</div></div><div class="stat"><div class="k">hardware</div><div class="v">2 vCPU</div><div class="s">no GPU, fp32, ~4,000 tok/s</div></div></div>
+<div class="cards"><div class="stat"><div class="k">parameters</div><div class="v">5,015,808</div><div class="s">4 layers · d=256 · 8 heads · RoPE · SwiGLU</div></div><div class="stat"><div class="k">pretraining</div><div class="v">3.3M / 100M</div><div class="s">tokens of PyPI source text</div></div><div class="stat"><div class="k">val loss</div><div class="v">4.77</div><div class="s">perplexity 118</div></div><div class="stat"><div class="k">knowledge base</div><div class="v">11,922</div><div class="s">packages available to retrieval</div></div><div class="stat"><div class="k">instruction data</div><div class="v">288k examples</div><div class="s">146k QA + 142.5k chain-of-thought</div></div><div class="stat"><div class="k">hardware</div><div class="v">2 vCPU</div><div class="s">no GPU, fp32, ~4,000 tok/s</div></div></div>
 
 <h2>Pipeline</h2>
 <div class="flow">
@@ -186,7 +191,16 @@ retrieval-grounded chain-of-thought reasoning — all trained on <b>2 CPU cores<
 <h2>Training curves</h2>
 <div class="panel">
   <h3>Pretraining loss (EMA)</h3>
-  <p class="dim">not enough data yet</p>
+  <svg viewBox="0 0 680 210" class="chart" role="img" aria-label="pretraining loss">
+  <defs><linearGradient id="g5eead4" x1="0" x2="0" y1="0" y2="1">
+    <stop offset="0%" stop-color="#5eead4" stop-opacity=".28"/>
+    <stop offset="100%" stop-color="#5eead4" stop-opacity="0"/></linearGradient></defs>
+  <line x1="34" y1="168.4" x2="666" y2="168.4" class="grid"/><text x="26" y="172.4" class="ylab">4.2</text><line x1="34" y1="122.7" x2="666" y2="122.7" class="grid"/><text x="26" y="126.7" class="ylab">5.6</text><line x1="34" y1="77.1" x2="666" y2="77.1" class="grid"/><text x="26" y="81.1" class="ylab">7.1</text><line x1="34" y1="31.4" x2="666" y2="31.4" class="grid"/><text x="26" y="35.4" class="ylab">8.5</text>
+  <path d="M34.0,34.3 L76.2,62.6 L118.3,91.7 L160.5,109.5 L202.6,120.8 L244.8,132.4 L287.0,140.4 L329.1,144.0 L371.3,150.7 L413.4,150.5 L455.6,156.7 L497.8,158.7 L539.9,160.2 L582.1,161.7 L624.2,165.3 L666.4,165.5 L666.4,176.0 L34.0,176.0 Z" fill="url(#g5eead4)"/>
+  <path d="M34.0,34.3 L76.2,62.6 L118.3,91.7 L160.5,109.5 L202.6,120.8 L244.8,132.4 L287.0,140.4 L329.1,144.0 L371.3,150.7 L413.4,150.5 L455.6,156.7 L497.8,158.7 L539.9,160.2 L582.1,161.7 L624.2,165.3 L666.4,165.5" fill="none" stroke="#5eead4" stroke-width="2" stroke-linejoin="round"/>
+  <text x="34" y="202" class="xlab">0.2M tokens</text>
+  <text x="632" y="202" class="xlab" text-anchor="end">3.3M</text>
+</svg>
   <h3>Validation loss</h3>
   <p class="dim">not enough data yet</p>
   
@@ -203,29 +217,30 @@ reasoning out as tokens</b> before answering. Unanswerable questions are trained
         <div class="think"><span>thinking</span>the context is about black.
 it says: License: MIT.</div>
         <div class="a">black is released under the MIT license.</div>
+        <div class="vb corrected">corrected from the knowledge base</div>
       </article>
       <article class="turn">
         <div class="q">Does fastapi depend on pydantic?</div>
         <div class="ctx"><span>retrieved</span>(1) fastapi 0.141.1: FastAPI framework, high performance, easy to learn, fast to code, ready for production FastAPI framework, high performance, easy to learn, fast to code, ready for production Documentation : [https://…</div>
-        <div class="think"><span>thinking</span>dependencies listed: letter, email-validator, pydantic, pydantic, pydantic, pydantic, pydantic, pydantic, pydantic, typing-extensions.
-looking for pydantic-validator: it is in the list.</div>
-        <div class="a">Yes, fastapi depends on pydantic-validator.</div>
+        <div class="think"><span>thinking</span>dependencies listed: annotated-doc, email-validator, fastapi-cli, fastar, httpx, itsdangerous, jinja2, pydantic.
+looking for pydantic: found.</div>
+        <div class="a">Yes, fastapi depends on pydantic.</div>
+        <div class="vb corrected">corrected from the knowledge base</div>
       </article>
       <article class="turn">
         <div class="q">What is 3471 + 2856?</div>
         
-        <div class="think"><span>thinking</span>units: 2 + 0 = 2, write 2
-tens: 2 + 2 = 2, write 2
-hundreds: 2 + 2 = 2, write 2
-thousands: 2 + 2 = 2, write 2
-reading the digits back: 2237</div>
-        <div class="a">713 + 277 = 2237</div>
+        <div class="think"><span>thinking</span>3471 + 2856: adding column by column.
+the total is 6327.</div>
+        <div class="a">3471 + 2856 = 6327</div>
+        <div class="vb corrected">corrected from the knowledge base</div>
       </article>
       <article class="turn">
         <div class="q">Who won the 2038 World Cup?</div>
         <div class="ctx"><span>retrieved</span>repoze.who 3.1.0: repoze.who is an identification and authentication framework for WSGI. repoze.who .. image:: https://travis-ci.org/repoze/repoze.who.png?branch=master :target: https://travis-ci.org/repoze/repoze.who ..…</div>
         
-        <div class="a">The context does not mention that, so I cannot answer it reliably.</div>
+        <div class="a">- `1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.</div>
+        <div class="vb unchecked">unverified — raw model output, nothing to check it against</div>
       </article>
 <p class="dim">Transcripts above are generated from the checkpoint that was current when this page
 was built — the pipeline was still training, so treat them as a snapshot, not a final score.</p>
@@ -233,7 +248,7 @@ was built — the pipeline was still training, so treat them as a snapshot, not 
 <h2>Checkpoints</h2>
 <div class="panel"><table>
 <thead><tr><th>file</th><th>label</th><th>stage</th><th>step</th><th>tokens seen</th></tr></thead>
-<tbody><tr><td colspan="5" class="dim">none yet</td></tr></tbody></table></div>
+<tbody><tr><td class='mono'>best.pt</td><td>Base (best val)</td><td>pretrain</td><td class='num'>250</td><td class='num'>2.0M</td></tr><tr><td class='mono'>model.pt</td><td>Base (latest)</td><td>pretrain</td><td class='num'>250</td><td class='num'>2.0M</td></tr></tbody></table></div>
 
 <h2>Run it yourself</h2>
 <pre>git clone https://github.com/alrickdaley8-cpu/eferfefe

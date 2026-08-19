@@ -77,6 +77,7 @@ def gather_samples(limit_tokens: int = 90) -> list[dict]:
         r = a.answer(q, max_tokens=limit_tokens, temperature=0.2, top_k=5)
         out.append({"q": q, "reasoning": r.get("reasoning", ""), "a": r.get("answer", ""),
                     "context": (r.get("context") or "")[:220],
+                    "verification": r.get("verification", "unchecked"),
                     "checkpoint": r.get("checkpoint"), "step": r.get("step")})
         print(f"[page] sampled: {q}", flush=True)
     return out
@@ -150,6 +151,11 @@ def render(d: dict, samples: list[dict]) -> str:
         {f'<div class="ctx"><span>retrieved</span>{html.escape(s["context"])}…</div>' if s.get("context") else ''}
         {f'<div class="think"><span>thinking</span>{html.escape(s["reasoning"])}</div>' if s.get("reasoning") else ''}
         <div class="a">{html.escape(s['a']) or '<em>(empty)</em>'}</div>
+        <div class="vb {s.get('verification','unchecked')}">{
+          {"ok": "verified against the knowledge base",
+           "corrected": "corrected from the knowledge base",
+           "unchecked": "unverified — raw model output, nothing to check it against"
+           }.get(s.get('verification','unchecked'), '')}</div>
       </article>""" for s in samples)
 
     ts = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())
@@ -201,6 +207,11 @@ pre{{background:#0d121a;border:1px solid var(--line);border-radius:12px;padding:
 .turn .ctx span,.turn .think span{{display:block;font-size:10.5px;text-transform:uppercase;
  letter-spacing:.6px;color:var(--accent2);margin-bottom:3px}}
 .turn .a{{margin-top:8px;white-space:pre-wrap}}
+.turn .vb{{margin-top:9px;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;
+ display:inline-block;border:1px solid;border-radius:999px;padding:2px 9px}}
+.turn .vb.ok{{color:var(--accent);border-color:#5eead444}}
+.turn .vb.corrected{{color:#fbbf24;border-color:#fbbf2444}}
+.turn .vb.unchecked{{color:var(--dim);border-color:#8b98ad44}}
 .flow{{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}}
 .flowstep{{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;
  font-size:13px}}
