@@ -15,6 +15,10 @@ import json
 import os
 import time
 
+from ai.ui import CSS as CHAT_CSS
+from ai.ui import JS as CHAT_JS
+from ai.ui import MAIN as CHAT_MAIN
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AI = os.path.join(ROOT, "ai")
 CKPT = os.path.join(AI, "checkpoints")
@@ -122,7 +126,7 @@ def render(d: dict, samples: list[dict]) -> str:
     last_val = val_pts[-1][1] if val_pts else None
 
     def card(k, v, sub=""):
-        return (f'<div class="card"><div class="k">{k}</div><div class="v">{v}</div>'
+        return (f'<div class="stat"><div class="k">{k}</div><div class="v">{v}</div>'
                 f'<div class="s">{sub}</div></div>')
 
     stat_cards = "".join([
@@ -172,14 +176,14 @@ p{{color:#cbd5e6}} .dim{{color:var(--dim)}}
 .badge{{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;
  font-size:12.5px;color:var(--dim)}}
 .badge b{{color:var(--text);font-weight:600}}
-.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:22px 0}}
-.card{{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}}
-.card .k{{font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim)}}
-.card .v{{font-size:23px;font-weight:650;margin:3px 0 1px}}
-.card .s{{font-size:12.5px;color:var(--dim)}}
+.cards{{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:22px 0}}
+.stat{{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}}
+.stat .k{{font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim)}}
+.stat .v{{font-size:23px;font-weight:650;margin:3px 0 1px}}
+.stat .s{{font-size:12.5px;color:var(--dim)}}
 .panel{{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px}}
 .chart{{width:100%;height:auto;display:block}}
-.grid line.grid{{stroke:#1e2634}} line.grid{{stroke:#1e2634;stroke-width:1}}
+line.grid{{stroke:#1e2634;stroke-width:1}}
 text.ylab{{fill:#5f6d82;font:10px ui-monospace,monospace;text-anchor:end}}
 text.xlab{{fill:#5f6d82;font:10px ui-monospace,monospace}}
 table{{width:100%;border-collapse:collapse;font-size:13.5px}}
@@ -198,12 +202,20 @@ pre{{background:#0d121a;border:1px solid var(--line);border-radius:12px;padding:
  letter-spacing:.6px;color:var(--accent2);margin-bottom:3px}}
 .turn .a{{margin-top:8px;white-space:pre-wrap}}
 .flow{{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}}
-.step{{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;
+.flowstep{{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;
  font-size:13px}}
-.step b{{display:block;color:var(--accent);font-size:11.5px;text-transform:uppercase;
+.flowstep b{{display:block;color:var(--accent);font-size:11.5px;text-transform:uppercase;
  letter-spacing:.5px;margin-bottom:3px}}
 a{{color:var(--accent2)}} footer{{margin-top:52px;color:var(--dim);font-size:12.5px}}
-#live{{display:none;margin-top:12px}}
+</style>
+<style>{CHAT_CSS}</style>
+<style>
+/* the chat widget is embedded in the page flow rather than being its own screen */
+#chatapp.app{{max-width:none;margin:0;padding:0;grid-template-columns:1fr 330px}}
+#chatapp .chat{{min-height:360px}}
+#chatapp #log{{max-height:400px}}
+#chatapp .side{{position:static}}
+@media(max-width:980px){{#chatapp.app{{grid-template-columns:1fr}}}}
 </style></head><body><div class="wrap">
 
 <h1>tiny-lm</h1>
@@ -220,17 +232,17 @@ retrieval-grounded chain-of-thought reasoning — all trained on <b>2 CPU cores<
   <span class="badge">updated {ts}</span>
 </div>
 
-<div class="grid">{stat_cards}</div>
+<div class="cards">{stat_cards}</div>
 
 <h2>Pipeline</h2>
 <div class="flow">
-  <div class="step"><b>1 · corpus</b>470 MB of text from 1,745 PyPI source releases, deduped and
+  <div class="flowstep"><b>1 · corpus</b>470 MB of text from 1,745 PyPI source releases, deduped and
     quality filtered</div>
-  <div class="step"><b>2 · tokenizer</b>byte-level BPE, 8,192 merges, trained on the corpus</div>
-  <div class="step"><b>3 · pretrain</b>100M tokens, 1 epoch, cosine LR, 12,207 steps</div>
-  <div class="step"><b>4 · instruct</b>146k QA pairs from 11,922 package records</div>
-  <div class="step"><b>5 · reason</b>142.5k worked-step examples, answer-only loss</div>
-  <div class="step"><b>6 · serve</b>BM25 retrieval + streaming chat with a visible thought process</div>
+  <div class="flowstep"><b>2 · tokenizer</b>byte-level BPE, 8,192 merges, trained on the corpus</div>
+  <div class="flowstep"><b>3 · pretrain</b>100M tokens, 1 epoch, cosine LR, 12,207 steps</div>
+  <div class="flowstep"><b>4 · instruct</b>146k QA pairs from 11,922 package records</div>
+  <div class="flowstep"><b>5 · reason</b>142.5k worked-step examples, answer-only loss</div>
+  <div class="flowstep"><b>6 · serve</b>BM25 retrieval + streaming chat with a visible thought process</div>
 </div>
 
 <h2>Training curves</h2>
@@ -271,11 +283,11 @@ ai/daemon.sh status                           # progress, loss, throughput, ETA
 python -m ai.chat --think "does fastapi depend on pydantic?"
 python -m ai.serve --port 8000                # streaming chat UI</pre>
 
-<div id="live" class="panel">
-  <h3>Live demo detected</h3>
-  <p class="dim">A chat server is running on this host — <a href="http://localhost:8000">open the
-  full UI</a>.</p>
-</div>
+<h2 id="talk">Talk to it</h2>
+<p class="dim" id="offline">This page is static. Start the model server with
+  <code>python -m ai.serve --port 8000</code> and open it there (or append
+  <code>?api=http://localhost:8000</code> to this URL) to chat with the model.</p>
+<div id="chatapp" class="app" hidden>{CHAT_MAIN}</div>
 
 <footer>
   Built in <a href="https://github.com/alrickdaley8-cpu/eferfefe">alrickdaley8-cpu/eferfefe</a> ·
@@ -283,8 +295,7 @@ python -m ai.serve --port 8000                # streaming chat UI</pre>
 </footer>
 </div>
 <script>
-fetch("http://localhost:8000/status",{{mode:"cors"}}).then(r=>r.ok&&(document.getElementById("live")
-  .style.display="block")).catch(()=>{{}});
+{CHAT_JS}
 </script>
 </body></html>
 """

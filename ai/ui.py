@@ -1,10 +1,10 @@
-"""The single-page UI served by ai/serve.py (kept separate so the server stays readable)."""
+"""UI building blocks shared by the chat app (ai/serve.py) and the landing page.
 
-PAGE = r"""<!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>tiny-lm · 5M parameter assistant</title>
-<style>
+CSS / HEADER / MAIN / JS are composed into PAGE here, and embedded into the project
+page by ai/make_page.py so both surfaces run exactly the same chat client.
+"""
+
+CSS = r"""
 :root{
   --bg:#0b0e13; --panel:#12161f; --panel2:#161b26; --line:#242c3a; --text:#e8eef7;
   --dim:#8b98ad; --accent:#5eead4; --accent2:#7c9cff; --warn:#fbbf24; --user:#1d2735;
@@ -95,8 +95,9 @@ select{background:var(--bg);color:var(--text);border:1px solid var(--line);borde
 .prog i{display:block;height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent))}
 details summary{cursor:pointer;color:var(--dim);font-size:12px}
 @media(max-width:980px){.app{grid-template-columns:1fr}.side{position:static}}
-</style></head>
-<body><div class="app">
+"""
+
+HEADER = r"""
 
 <header>
   <div class="brand">
@@ -107,7 +108,9 @@ details summary{cursor:pointer;color:var(--dim);font-size:12px}
     <span class="pill"><span class="dot" id="trainDot"></span><span id="trainPill">training…</span></span>
     <span class="pill" id="kbPill">knowledge base —</span>
   </div>
-</header>
+</header>"""
+
+MAIN = r"""
 
 <main class="card chat">
   <div id="log"></div>
@@ -150,9 +153,9 @@ details summary{cursor:pointer;color:var(--dim);font-size:12px}
     <div class="stats" id="tstats"></div>
   </section>
 </aside>
-</div>
+"""
 
-<script>
+JS = r"""const API=(new URLSearchParams(location.search).get("api")||"").replace(/\/$/,"");
 const $=id=>document.getElementById(id);
 const EXAMPLES=["What is beautifulsoup4?","Does fastapi depend on pydantic?",
  "Do requests and black use the same license?","What is 3471 + 2856?",
@@ -192,22 +195,24 @@ function thought(kind,html,active){
 function clearThoughts(){$("think").innerHTML="";}
 
 async function loadModels(){
-  const d=await (await fetch("/models")).json();
+  const d=await (await fetch(API+"/models")).json();
   $("model").innerHTML=d.models.map(m=>
     `<option value="${m.file}" data-desc="${esc(m.description)} · step ${m.step.toLocaleString()} · ${(m.tokens/1e6).toFixed(1)}M tokens seen"
       ${m.loaded?"selected":""}>${esc(m.label)} — ${m.stage}</option>`).join("");
   $("mdesc").textContent=$("model").selectedOptions[0]?.dataset.desc||"";
-  $("brandTag").textContent=`${d.params.toLocaleString()} parameters · vocab ${d.vocab} · ${d.block_size}-token context`;
-  $("kbPill").textContent=`knowledge base ${d.kb.toLocaleString()} packages`;
+  if($("brandTag")) $("brandTag").textContent=
+    `${d.params.toLocaleString()} parameters · vocab ${d.vocab} · ${d.block_size}-token context`;
+  if($("kbPill")) $("kbPill").textContent=`knowledge base ${d.kb.toLocaleString()} packages`;
 }
 async function loadStatus(){
   try{
-    const s=await (await fetch("/status")).json();
+    const s=await (await fetch(API+"/status")).json();
     const frac=(s.tokens||0)/(s.total_tokens||1);
-    $("progBar").style.width=(frac*100).toFixed(1)+"%";
-    $("trainDot").className="dot"+(s.live?"":" off");
-    $("trainPill").textContent=s.live?`${s.stage} · ${(frac*100).toFixed(1)}%`:"training idle";
-    $("tstats").innerHTML=[
+    if($("progBar")) $("progBar").style.width=(frac*100).toFixed(1)+"%";
+    if($("trainDot")) $("trainDot").className="dot"+(s.live?"":" off");
+    if($("trainPill")) $("trainPill").textContent=
+      s.live?`${s.stage} · ${(frac*100).toFixed(1)}%`:"training idle";
+    if($("tstats")) $("tstats").innerHTML=[
       ["stage",s.stage||"—"],["state",s.state||"—"],
       ["tokens",`${((s.tokens||0)/1e6).toFixed(2)}M / ${((s.total_tokens||0)/1e6).toFixed(0)}M`],
       ["step",`${(s.step||0).toLocaleString()} / ${(s.total_steps||0).toLocaleString()}`],
@@ -230,7 +235,7 @@ async function send(){
   body.innerHTML='<span class="cursor"></span>';
   let out="", reasoning="", live=null;
 
-  const res=await fetch("/chat/stream",{method:"POST",headers:{"Content-Type":"application/json"},
+  const res=await fetch(API+"/chat/stream",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({message:text,model:$("model").value,use_context:opts.rag,
       chat_template:opts.tpl,temperature:$("temp").value/100,top_k:+$("topk").value,
       tokens:+$("maxt").value})});
@@ -291,5 +296,14 @@ async function send(){
 }
 
 loadModels(); loadStatus(); setInterval(loadStatus,15000); setInterval(loadModels,120000);
-</script></body></html>
+"""
+
+PAGE = """<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tiny-lm \u00b7 5M parameter assistant</title>
+<style>""" + CSS + """</style></head>
+<body><div class="app">""" + HEADER + MAIN + """</div>
+<script>
+""" + JS + """</script></body></html>
 """

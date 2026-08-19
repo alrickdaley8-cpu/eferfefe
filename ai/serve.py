@@ -24,6 +24,17 @@ import torch
 from ai.chat import CKPT_DIR, Assistant, default_ckpt, list_checkpoints
 from ai.ui import PAGE
 
+INDEX = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "index.html")
+
+
+def landing_page() -> str:
+    """The generated project page (with the chat widget) if it exists, else the bare app."""
+    try:
+        with open(INDEX, encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        return PAGE
+
 LOCK = threading.Lock()
 _cache: "OrderedDict[str, tuple[float, Assistant]]" = OrderedDict()
 _current = {"file": None}
@@ -76,6 +87,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(b)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(b)
 
@@ -86,6 +98,8 @@ class Handler(BaseHTTPRequestHandler):
     # ------------------------------------------------------------------ routes
     def do_GET(self):
         if self.path in ("/", "/index.html"):
+            return self._send(200, landing_page(), "text/html; charset=utf-8")
+        if self.path == "/app":            # the chat-only view
             return self._send(200, PAGE, "text/html; charset=utf-8")
         if self.path == "/models":
             models = list_checkpoints()
@@ -119,6 +133,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-store")
+            self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Connection", "close")
             self.end_headers()
 
