@@ -1,152 +1,195 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Greedy Growers 🌱 — harvest before the lightning</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌳</text></svg>">
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tiny-lm — a 5M parameter language model trained from scratch</title>
+<meta name="description" content="A 5,015,808 parameter transformer pretrained on 100M tokens and
+instruction tuned for retrieval-grounded reasoning, on 2 CPU cores.">
+<style>
+:root{--bg:#0b0e13;--panel:#12161f;--panel2:#161b26;--line:#242c3a;--text:#e8eef7;--dim:#8b98ad;
+ --accent:#5eead4;--accent2:#7c9cff}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1100px 600px at 12% -10%,#16203055,transparent),var(--bg);
+ color:var(--text);font:15px/1.7 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.mono,code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.wrap{max-width:1000px;margin:0 auto;padding:54px 20px 80px}
+h1{font-size:38px;line-height:1.15;margin:0 0 10px;letter-spacing:-.5px}
+h2{font-size:20px;margin:44px 0 14px;letter-spacing:-.2px}
+h3{font-size:15px;margin:22px 0 8px;color:var(--accent)}
+p{color:#cbd5e6} .dim{color:var(--dim)}
+.lede{font-size:17px;color:#b9c6da;max-width:70ch}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 4px}
+.badge{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;
+ font-size:12.5px;color:var(--dim)}
+.badge b{color:var(--text);font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:22px 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.card .k{font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim)}
+.card .v{font-size:23px;font-weight:650;margin:3px 0 1px}
+.card .s{font-size:12.5px;color:var(--dim)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px}
+.chart{width:100%;height:auto;display:block}
+.grid line.grid{stroke:#1e2634} line.grid{stroke:#1e2634;stroke-width:1}
+text.ylab{fill:#5f6d82;font:10px ui-monospace,monospace;text-anchor:end}
+text.xlab{fill:#5f6d82;font:10px ui-monospace,monospace}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--dim);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px}
+td.num{text-align:right;font-family:ui-monospace,monospace}
+pre{background:#0d121a;border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+ overflow:auto;font-size:13px;color:#cfe0f5}
+.turn{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:14px 16px;
+ margin:12px 0}
+.turn .q{font-weight:600}
+.turn .ctx,.turn .think{font-size:12.8px;border-left:2px solid var(--line);padding:6px 0 6px 11px;
+ margin:9px 0;color:var(--dim);white-space:pre-wrap}
+.turn .think{border-left-color:var(--accent2);color:#a8b6cc}
+.turn .ctx span,.turn .think span{display:block;font-size:10.5px;text-transform:uppercase;
+ letter-spacing:.6px;color:var(--accent2);margin-bottom:3px}
+.turn .a{margin-top:8px;white-space:pre-wrap}
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+.step{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;
+ font-size:13px}
+.step b{display:block;color:var(--accent);font-size:11.5px;text-transform:uppercase;
+ letter-spacing:.5px;margin-bottom:3px}
+a{color:var(--accent2)} footer{margin-top:52px;color:var(--dim);font-size:12.5px}
+#live{display:none;margin-top:12px}
+</style></head><body><div class="wrap">
 
-<div id="app">
-  <!-- ======= TOP BAR ======= -->
-  <header id="topbar">
-    <div class="brand" title="Greedy Growers">
-      <span class="brand-icon">🌱</span>
-      <div class="brand-text">
-        <div class="brand-title">Greedy Growers</div>
-        <div class="brand-sub">grow tall. harvest early. or don't.</div>
-      </div>
-    </div>
+<h1>tiny-lm</h1>
+<p class="lede">A <b>5,015,808 parameter</b> language model built from scratch — corpus collection,
+tokenizer, transformer, pretraining on <b>100,000,000 tokens</b>, instruction tuning and
+retrieval-grounded chain-of-thought reasoning — all trained on <b>2 CPU cores</b>, no GPU.</p>
 
-    <div class="stats">
-      <div class="stat chip" id="coinStat" title="Coins in your pocket">
-        <span class="stat-ico">🪙</span><span id="coinVal">0</span>
-      </div>
-      <div class="stat chip" id="lifeStat" title="Lifetime earnings">
-        <span class="stat-ico">💸</span><span id="lifeVal">0</span>
-      </div>
-      <div class="stat chip" id="greedStat" title="Greed level (rebirths)">
-        <span class="stat-ico">😈</span><span id="greedVal">0</span>
-      </div>
-      <div class="stat chip streak" id="streakStat" title="Harvest trees at 60%+ growth to grow your greed streak">
-        <span class="stat-ico">🔥</span><span id="streakVal">0</span><span class="streak-x">x</span>
-      </div>
-    </div>
-
-    <div class="weather-chip" id="weatherChip">
-      <span id="weatherIco">☀️</span>
-      <span id="weatherText">Clear skies</span>
-    </div>
-
-    <nav class="topnav">
-      <button class="navbtn" data-tab="shop" title="Buy seeds at the river">🌊 Shop</button>
-      <button class="navbtn" data-tab="upgrades" title="Upgrades">⬆️ Upgrades</button>
-      <button class="navbtn" data-tab="codes" title="Redeem codes">🎁 Codes</button>
-      <button class="navbtn" data-tab="rebirth" title="Rebirth & stats">♻️ Rebirth</button>
-      <button class="iconbtn" id="soundBtn" title="Toggle sound">🔊</button>
-      <button class="iconbtn" id="helpBtn" title="How to play">❓</button>
-    </nav>
-  </header>
-
-  <!-- ======= GAME AREA ======= -->
-  <main id="gamewrap">
-    <canvas id="game"></canvas>
-
-    <!-- floating UI overlays on the canvas -->
-    <div id="invbar" class="invbar">
-      <div class="invlabel">🌰 Seed bags</div>
-      <div id="invItems" class="invitems"></div>
-      <div id="invEmpty" class="invempty">Buy seeds at the river shop →</div>
-    </div>
-
-    <div id="selectedHint" class="selected-hint hidden">
-      🌰 <b id="selectedName"></b> selected — tap an empty plot to plant
-      <button id="cancelSel" class="tinybtn">✕</button>
-    </div>
-  </main>
-
-  <!-- ======= SIDE PANEL ======= -->
-  <aside id="panel">
-    <!-- SHOP -->
-    <section class="tabpane" id="tab-shop">
-      <h2>🌊 The River Seed Shack</h2>
-      <p class="panel-sub">"Fresh seeds, straight from the river. Greed not included… <i>yet</i>."</p>
-      <div id="shopList" class="shop-list"></div>
-    </section>
-
-    <!-- UPGRADES -->
-    <section class="tabpane hidden" id="tab-upgrades">
-      <h2>⬆️ Upgrades</h2>
-      <p class="panel-sub">Grow faster, richer, and safer.</p>
-      <div id="upgradeList" class="shop-list"></div>
-    </section>
-
-    <!-- CODES -->
-    <section class="tabpane hidden" id="tab-codes">
-      <h2>🎁 Redeem codes</h2>
-      <p class="panel-sub">Codes are case-sensitive and expire when the creator gets bored.</p>
-      <div class="code-row">
-        <input id="codeInput" type="text" placeholder="Enter code…" autocomplete="off" spellcheck="false">
-        <button id="codeBtn" class="primary">Redeem</button>
-      </div>
-      <div id="codeHint" class="code-hint"></div>
-      <h3 class="mini-h">Your codes</h3>
-      <div id="codeList" class="code-list"></div>
-    </section>
-
-    <!-- REBIRTH / STATS -->
-    <section class="tabpane hidden" id="tab-rebirth">
-      <h2>♻️ Rebirth</h2>
-      <p class="panel-sub">Sacrifice everything for permanent Greed. Each level = <b>+75% value</b> and <b>+15% growth speed</b>.</p>
-      <div class="rebirth-box">
-        <div class="rebirth-req" id="rebirthReq"></div>
-        <div class="progress"><div class="progress-fill" id="rebirthBar"></div></div>
-        <div class="progress-label" id="rebirthPct"></div>
-        <button class="primary wide" id="rebirthBtn" disabled>Rebirth</button>
-        <div class="rebirth-warn">Resets coins, plots, upgrades and seed bags. Greed level is forever.</div>
-      </div>
-      <h3 class="mini-h">📊 Lifetime stats</h3>
-      <div class="statgrid" id="statGrid"></div>
-    </section>
-  </aside>
-
-  <!-- ======= TOASTS ======= -->
-  <div id="toasts"></div>
-
-  <!-- ======= HELP MODAL ======= -->
-  <div id="modal" class="modal hidden">
-    <div class="modal-card">
-      <button class="modal-x" id="modalX">✕</button>
-      <h2>🌳 How to play Greedy Growers</h2>
-      <ol class="help-list">
-        <li><b>Buy a seed at the river.</b> Open the <b>Shop</b>, pick a seed bag, and buy it.</li>
-        <li><b>Plant it.</b> Your seed bags appear at the bottom of the garden. Tap a bag, then tap an empty plot.</li>
-        <li><b>Watch it grow.</b> Trees grow taller and more valuable over time. The price tag above each tree shows what it's worth <i>right now</i>.</li>
-        <li><b>Harvest before the lightning.</b> ⛈️ Storms roll in with a warning. Tap a tree to harvest it — <b>waiting too long means lightning turns your fortune to charcoal</b>.</li>
-      </ol>
-      <div class="help-tips">
-        <p>💡 <b>Greed streak:</b> harvest a tree at 60%+ growth to stack 🔥 (up to +50% value). Harvesting too early resets it.</p>
-        <p>💡 <b>Lightning rods</b> reduce strike odds. Fully grown trees are the tastiest target for Zeus.</p>
-        <p>💡 <b>Codes:</b> try <code>ILOVECATS</code> for a starter boost.</p>
-      </div>
-      <button class="primary wide" id="modalGo">Plant my first seed 🌱</button>
-    </div>
-  </div>
-
-  <div id="confirmModal" class="modal hidden">
-    <div class="modal-card small">
-      <h2 id="confirmTitle">Are you sure?</h2>
-      <p id="confirmBody"></p>
-      <div class="confirm-btns">
-        <button class="primary" id="confirmYes">Yes</button>
-        <button class="ghost" id="confirmNo">Cancel</button>
-      </div>
-    </div>
-  </div>
+<div class="badges">
+  <span class="badge"><b>4</b> layers</span>
+  <span class="badge"><b>256</b> d_model</span>
+  <span class="badge"><b>8192</b> vocab</span>
+  <span class="badge"><b>512</b> context</span>
+  <span class="badge">RoPE · SwiGLU · RMSNorm · tied embeddings</span>
+  <span class="badge">updated 2026-08-19 15:23 UTC</span>
 </div>
 
-<script src="game.js"></script>
-</body>
-</html>
+<div class="grid"><div class="card"><div class="k">parameters</div><div class="v">5,015,808</div><div class="s">4 layers · d=256 · 8 heads · RoPE · SwiGLU</div></div><div class="card"><div class="k">pretraining</div><div class="v">12.3M / 100M</div><div class="s">tokens of PyPI source text</div></div><div class="card"><div class="k">val loss</div><div class="v">3.45</div><div class="s">perplexity 32</div></div><div class="card"><div class="k">knowledge base</div><div class="v">11,922</div><div class="s">packages available to retrieval</div></div><div class="card"><div class="k">instruction data</div><div class="v">288k examples</div><div class="s">146k QA + 142.5k chain-of-thought</div></div><div class="card"><div class="k">hardware</div><div class="v">2 vCPU</div><div class="s">no GPU, fp32, ~4,000 tok/s</div></div></div>
+
+<h2>Pipeline</h2>
+<div class="flow">
+  <div class="step"><b>1 · corpus</b>470 MB of text from 1,745 PyPI source releases, deduped and
+    quality filtered</div>
+  <div class="step"><b>2 · tokenizer</b>byte-level BPE, 8,192 merges, trained on the corpus</div>
+  <div class="step"><b>3 · pretrain</b>100M tokens, 1 epoch, cosine LR, 12,207 steps</div>
+  <div class="step"><b>4 · instruct</b>146k QA pairs from 11,922 package records</div>
+  <div class="step"><b>5 · reason</b>142.5k worked-step examples, answer-only loss</div>
+  <div class="step"><b>6 · serve</b>BM25 retrieval + streaming chat with a visible thought process</div>
+</div>
+
+<h2>Training curves</h2>
+<div class="panel">
+  <h3>Pretraining loss (EMA)</h3>
+  <svg viewBox="0 0 680 210" class="chart" role="img" aria-label="pretraining loss">
+  <defs><linearGradient id="g5eead4" x1="0" x2="0" y1="0" y2="1">
+    <stop offset="0%" stop-color="#5eead4" stop-opacity=".28"/>
+    <stop offset="100%" stop-color="#5eead4" stop-opacity="0"/></linearGradient></defs>
+  <line x1="34" y1="168.4" x2="666" y2="168.4" class="grid"/><text x="26" y="172.4" class="ylab">3.0</text><line x1="34" y1="122.7" x2="666" y2="122.7" class="grid"/><text x="26" y="126.7" class="ylab">4.8</text><line x1="34" y1="77.1" x2="666" y2="77.1" class="grid"/><text x="26" y="81.1" class="ylab">6.7</text><line x1="34" y1="31.4" x2="666" y2="31.4" class="grid"/><text x="26" y="35.4" class="ylab">8.6</text>
+  <path d="M34.0,34.3 L44.7,55.8 L55.4,78.3 L66.2,92.5 L76.9,102.7 L87.6,110.3 L98.3,115.5 L109.0,120.9 L119.7,125.1 L130.5,126.0 L141.2,129.1 L151.9,131.5 L162.6,133.6 L173.3,135.8 L184.1,138.5 L194.8,136.6 L205.5,138.7 L216.2,139.3 L226.9,141.6 L237.7,144.2 L248.4,142.4 L259.1,143.5 L269.8,142.9 L280.5,146.5 L291.2,146.4 L302.0,145.9 L312.7,146.4 L323.4,148.3 L334.1,148.1 L344.8,149.6 L355.6,148.2 L366.3,153.2 L377.0,151.8 L387.7,153.4 L355.6,150.9 L366.3,149.4 L377.0,152.6 L387.7,152.1 L398.4,153.0 L409.2,154.1 L419.9,153.8 L430.6,151.8 L355.6,149.0 L366.3,149.5 L377.0,149.3 L387.7,152.1 L398.4,153.9 L409.2,153.6 L419.9,154.2 L430.6,154.7 L441.3,156.9 L452.0,153.9 L462.7,155.7 L473.5,156.8 L484.2,157.9 L494.9,158.5 L505.6,159.4 L516.3,157.4 L527.1,159.3 L537.8,158.8 L548.5,160.9 L559.2,162.1 L569.9,162.2 L580.7,161.1 L591.4,160.3 L602.1,163.1 L612.8,162.9 L623.5,162.3 L634.2,162.4 L645.0,164.3 L655.7,164.0 L666.4,165.5 L666.4,176.0 L34.0,176.0 Z" fill="url(#g5eead4)"/>
+  <path d="M34.0,34.3 L44.7,55.8 L55.4,78.3 L66.2,92.5 L76.9,102.7 L87.6,110.3 L98.3,115.5 L109.0,120.9 L119.7,125.1 L130.5,126.0 L141.2,129.1 L151.9,131.5 L162.6,133.6 L173.3,135.8 L184.1,138.5 L194.8,136.6 L205.5,138.7 L216.2,139.3 L226.9,141.6 L237.7,144.2 L248.4,142.4 L259.1,143.5 L269.8,142.9 L280.5,146.5 L291.2,146.4 L302.0,145.9 L312.7,146.4 L323.4,148.3 L334.1,148.1 L344.8,149.6 L355.6,148.2 L366.3,153.2 L377.0,151.8 L387.7,153.4 L355.6,150.9 L366.3,149.4 L377.0,152.6 L387.7,152.1 L398.4,153.0 L409.2,154.1 L419.9,153.8 L430.6,151.8 L355.6,149.0 L366.3,149.5 L377.0,149.3 L387.7,152.1 L398.4,153.9 L409.2,153.6 L419.9,154.2 L430.6,154.7 L441.3,156.9 L452.0,153.9 L462.7,155.7 L473.5,156.8 L484.2,157.9 L494.9,158.5 L505.6,159.4 L516.3,157.4 L527.1,159.3 L537.8,158.8 L548.5,160.9 L559.2,162.1 L569.9,162.2 L580.7,161.1 L591.4,160.3 L602.1,163.1 L612.8,162.9 L623.5,162.3 L634.2,162.4 L645.0,164.3 L655.7,164.0 L666.4,165.5" fill="none" stroke="#5eead4" stroke-width="2" stroke-linejoin="round"/>
+  <text x="34" y="202" class="xlab">0.2M tokens</text>
+  <text x="632" y="202" class="xlab" text-anchor="end">12.3M</text>
+</svg>
+  <h3>Validation loss</h3>
+  <svg viewBox="0 0 680 210" class="chart" role="img" aria-label="validation loss">
+  <defs><linearGradient id="g7c9cff" x1="0" x2="0" y1="0" y2="1">
+    <stop offset="0%" stop-color="#7c9cff" stop-opacity=".28"/>
+    <stop offset="100%" stop-color="#7c9cff" stop-opacity="0"/></linearGradient></defs>
+  <line x1="34" y1="168.4" x2="666" y2="168.4" class="grid"/><text x="26" y="172.4" class="ylab">3.4</text><line x1="34" y1="122.7" x2="666" y2="122.7" class="grid"/><text x="26" y="126.7" class="ylab">3.9</text><line x1="34" y1="77.1" x2="666" y2="77.1" class="grid"/><text x="26" y="81.1" class="ylab">4.3</text><line x1="34" y1="31.4" x2="666" y2="31.4" class="grid"/><text x="26" y="35.4" class="ylab">4.8</text>
+  <path d="M34.0,34.3 L160.5,88.7 L287.0,112.5 L413.4,129.5 L539.9,148.9 L666.4,165.5 L666.4,176.0 L34.0,176.0 Z" fill="url(#g7c9cff)"/>
+  <path d="M34.0,34.3 L160.5,88.7 L287.0,112.5 L413.4,129.5 L539.9,148.9 L666.4,165.5" fill="none" stroke="#7c9cff" stroke-width="2" stroke-linejoin="round"/>
+  <text x="34" y="202" class="xlab">2.0M tokens</text>
+  <text x="632" y="202" class="xlab" text-anchor="end">12.3M</text>
+</svg>
+  <h3>Instruction tuning loss</h3><svg viewBox="0 0 680 210" class="chart" role="img" aria-label="sft loss">
+  <defs><linearGradient id="gfbbf24" x1="0" x2="0" y1="0" y2="1">
+    <stop offset="0%" stop-color="#fbbf24" stop-opacity=".28"/>
+    <stop offset="100%" stop-color="#fbbf24" stop-opacity="0"/></linearGradient></defs>
+  <line x1="34" y1="168.4" x2="666" y2="168.4" class="grid"/><text x="26" y="172.4" class="ylab">1.3</text><line x1="34" y1="122.7" x2="666" y2="122.7" class="grid"/><text x="26" y="126.7" class="ylab">2.6</text><line x1="34" y1="77.1" x2="666" y2="77.1" class="grid"/><text x="26" y="81.1" class="ylab">4.0</text><line x1="34" y1="31.4" x2="666" y2="31.4" class="grid"/><text x="26" y="35.4" class="ylab">5.3</text>
+  <path d="M34.0,34.3 L82.6,68.9 L131.3,89.3 L179.9,97.6 L228.6,106.2 L277.2,111.7 L325.9,115.7 L374.5,119.5 L423.2,120.4 L471.8,118.5 L34.0,34.3 L82.6,68.7 L34.0,51.7 L82.6,87.8 L131.3,113.3 L179.9,128.8 L228.6,136.5 L277.2,145.5 L325.9,150.1 L374.5,152.6 L423.2,156.9 L471.8,159.4 L520.5,159.6 L569.1,163.0 L617.8,165.5 L666.4,164.2 L666.4,176.0 L34.0,176.0 Z" fill="url(#gfbbf24)"/>
+  <path d="M34.0,34.3 L82.6,68.9 L131.3,89.3 L179.9,97.6 L228.6,106.2 L277.2,111.7 L325.9,115.7 L374.5,119.5 L423.2,120.4 L471.8,118.5 L34.0,34.3 L82.6,68.7 L34.0,51.7 L82.6,87.8 L131.3,113.3 L179.9,128.8 L228.6,136.5 L277.2,145.5 L325.9,150.1 L374.5,152.6 L423.2,156.9 L471.8,159.4 L520.5,159.6 L569.1,163.0 L617.8,165.5 L666.4,164.2" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linejoin="round"/>
+  <text x="34" y="202" class="xlab">0.2M tokens</text>
+  <text x="632" y="202" class="xlab" text-anchor="end">2.9M</text>
+</svg>
+</div>
+
+<h2>What it actually does</h2>
+<p>At this size the model cannot memorise the world, so it is trained to do the two things that
+fit in 5M parameters: <b>answer from a context passage retrieved for it</b>, and <b>write its
+reasoning out as tokens</b> before answering. Unanswerable questions are trained to be refused.</p>
+
+      <article class="turn">
+        <div class="q">What license does black use?</div>
+        <div class="ctx"><span>retrieved</span>black 26.5.1: The uncompromising code formatter. The Uncompromising Code Formatter “Any color you like.” Black is the uncompromising Python code formatter. By using it, you agree to cede control over minutiae of hand-for…</div>
+        <div class="think"><span>thinking</span>the context is about black.
+it says: License: MIT.</div>
+        <div class="a">black is released under the MIT license.</div>
+      </article>
+      <article class="turn">
+        <div class="q">Does fastapi depend on pydantic?</div>
+        <div class="ctx"><span>retrieved</span>(1) fastapi 0.141.1: FastAPI framework, high performance, easy to learn, fast to code, ready for production FastAPI framework, high performance, easy to learn, fast to code, ready for production Documentation : [https://…</div>
+        <div class="think"><span>thinking</span>dependencies listed: letter, email-validator, pydantic, pydantic-core, pydantic, pydantic, pydantic, pydantic, pydantic, tzdata, tzdata.
+looking for pydantic-validator: it is in the list.</div>
+        <div class="a">Yes, fastapi depends on pydantic-validator.</div>
+      </article>
+      <article class="turn">
+        <div class="q">What is 3471 + 2856?</div>
+        
+        <div class="think"><span>thinking</span>units: 2 + 0 = 2, write 2
+tens: 2 + 2 = 2, write 2
+hundreds: 2 + 2 = 2, write 2
+thousands: 2 + 2 = 2, write 2
+reading the digits back: 27130</div>
+        <div class="a">7111 + 27 = 27110</div>
+      </article>
+      <article class="turn">
+        <div class="q">Who won the 2038 World Cup?</div>
+        <div class="ctx"><span>retrieved</span>repoze.who 3.1.0: repoze.who is an identification and authentication framework for WSGI. repoze.who .. image:: https://travis-ci.org/repoze/repoze.who.png?branch=master :target: https://travis-ci.org/repoze/repoze.who ..…</div>
+        
+        <div class="a">The context does not mention that, so I cannot answer it reliably.</div>
+      </article>
+<p class="dim">Transcripts above are generated from the checkpoint that was current when this page
+was built — the pipeline was still training, so treat them as a snapshot, not a final score.</p>
+
+<h2>Checkpoints</h2>
+<div class="panel"><table>
+<thead><tr><th>file</th><th>label</th><th>stage</th><th>step</th><th>tokens seen</th></tr></thead>
+<tbody><tr><td class='mono'>sft_demo.pt</td><td>Chat preview</td><td>sft</td><td class='num'>355</td><td class='num'>2.9M</td></tr><tr><td class='mono'>best.pt</td><td>Base (best val)</td><td>pretrain</td><td class='num'>1,500</td><td class='num'>12.3M</td></tr><tr><td class='mono'>model.pt</td><td>Base (latest)</td><td>pretrain</td><td class='num'>1,500</td><td class='num'>12.3M</td></tr><tr><td class='mono'>base_demo.pt</td><td>Base snapshot</td><td>pretrain</td><td class='num'>750</td><td class='num'>6.1M</td></tr></tbody></table></div>
+
+<h2>Run it yourself</h2>
+<pre>git clone https://github.com/alrickdaley8-cpu/eferfefe
+cd eferfefe
+python -m venv .venv &amp;&amp; .venv/bin/pip install torch numpy tokenizers requests
+
+python ai/build_corpus.py --target-mb 450     # 470 MB of text
+python ai/train_tokenizer.py                  # 8k byte-level BPE
+python ai/prepare_data.py                     # exactly 100,000,000 tokens
+python ai/build_qa.py --packages 12000        # knowledge base + QA set
+python ai/build_reasoning.py                  # chain-of-thought set
+
+ai/daemon.sh start                            # pretrain -> instruction tune, in the background
+ai/daemon.sh status                           # progress, loss, throughput, ETA
+python -m ai.chat --think "does fastapi depend on pydantic?"
+python -m ai.serve --port 8000                # streaming chat UI</pre>
+
+<div id="live" class="panel">
+  <h3>Live demo detected</h3>
+  <p class="dim">A chat server is running on this host — <a href="http://localhost:8000">open the
+  full UI</a>.</p>
+</div>
+
+<footer>
+  Built in <a href="https://github.com/alrickdaley8-cpu/eferfefe">alrickdaley8-cpu/eferfefe</a> ·
+  page generated by <code>ai/make_page.py</code> · numbers are read straight from the training logs.
+</footer>
+</div>
+<script>
+fetch("http://localhost:8000/status",{mode:"cors"}).then(r=>r.ok&&(document.getElementById("live")
+  .style.display="block")).catch(()=>{});
+</script>
+</body></html>

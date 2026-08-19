@@ -4,7 +4,7 @@ It bakes in the real numbers (loss curves from the training logs, checkpoint lis
 and a handful of real transcripts, so the page works on GitHub Pages with no server. If the chat
 server happens to be running on the same host, the page unlocks a live demo panel automatically.
 
-    python ai/make_page.py                # regenerate with fresh numbers + fresh samples
+    python ai/make_page.py                # regenerate index.html with fresh numbers + samples
     python ai/make_page.py --no-samples   # keep the transcripts already on the page
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AI = os.path.join(ROOT, "ai")
 CKPT = os.path.join(AI, "checkpoints")
-OUT = os.path.join(AI, "index.html")
+OUT = os.path.join(ROOT, "index.html")   # the repository landing page
 SAMPLES = os.path.join(AI, "data", "samples.json")
 
 DEMO_PROMPTS = [
