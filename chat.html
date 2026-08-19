@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TinyLLM Chat — ChatGPT-style 1M model</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>
+:root{--bg:#212121;--sidebar:#171717;--card:#2f2f2f;--border:#3a3a3a;--hover:#2a2a2a;--accent:#7c5cff;--accent-hover:#6a4de0;--text:#ececec;--muted:#9e9e9e;--user-bg:#2f2f2f;--assistant-bg:#212121;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;height:100vh;overflow:hidden;display:flex}
+button{font-family:inherit}
+
+/* Sidebar */
+.sidebar{width:260px;background:var(--sidebar);display:flex;flex-direction:column;padding:0;border-right:1px solid #2a2a2a;flex-shrink:0}
+.sidebar-top{padding:12px}
+.new-chat{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;background:var(--accent);color:white;border:0;border-radius:10px;font-weight:600;font-size:14px;cursor:pointer;transition:background .15s}
+.new-chat:hover{background:var(--accent-hover)}
+.sidebar-history{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:4px}
+.history-item{padding:10px 12px;border-radius:8px;font-size:13px;color:var(--muted);cursor:pointer;display:flex;justify-content:space-between;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .12s, color .12s}
+.history-item:hover{background:var(--hover);color:var(--text)}
+.history-item.active{background:var(--card);color:var(--text)}
+.history-item .del{opacity:0;transition:opacity .12s}
+.history-item:hover .del{opacity:1}
+.sidebar-footer{padding:12px;border-top:1px solid #2a2a2a;display:flex;flex-direction:column;gap:8px}
+.model-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.4}
+.model-card b{color:white}
+.link{color:var(--muted);font-size:12px;text-decoration:none;padding:6px 2px;display:block}
+.link:hover{color:var(--text)}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e;margin-right:6px}
+
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+.topbar{height:56px;border-bottom:1px solid #2f2f2f;display:flex;align-items:center;justify-content:space-between;padding:0 18px;flex-shrink:0}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.topbar h1{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+.topbar h1 span{font-weight:400;color:var(--muted);font-size:13px}
+.model-pill{background:#2f2f2f;border:1px solid var(--border);padding:4px 10px;border-radius:20px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.settings{display:flex;gap:8px;align-items:center}
+.settings select,.settings input{background:#2f2f2f;border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:8px;font-size:12px}
+.settings label{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+
+/* Chat area */
+.chat{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+.chat-inner{width:100%;max-width:800px;margin:0 auto;padding:0 16px 0;display:flex;flex-direction:column}
+.message-group{padding:20px 0;border-bottom:1px solid #2a2a2a;width:100%}
+.msg-row{display:flex;gap:16px;max-width:800px;margin:0 auto;width:100%}
+.avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+.avatar.user{background:#7c5cff;color:white}
+.avatar.assistant{background:#2f2f2f;color:#ececec;border:1px solid #3a3a3a}
+.avatar.system{background:#444;color:#aaa}
+.msg-content{flex:1;min-width:0;padding-top:2px}
+.msg-content .role{font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text)}
+.msg-content .text{font-size:15px;line-height:1.65;white-space:pre-wrap;word-break:break-word;color:var(--text)}
+.msg-content .text p{margin:8px 0}
+.msg-actions{margin-top:10px;display:flex;gap:8px}
+.msg-actions button{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer}
+.msg-actions button:hover{color:var(--text);border-color:#555}
+
+/* Empty state */
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;text-align:center;max-width:700px;margin:0 auto}
+.empty h2{font-size:28px;font-weight:700;margin-bottom:8px}
+.empty p{color:var(--muted);font-size:14px;max-width:500px;line-height:1.5;margin-bottom:24px}
+.examples{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;width:100%;margin-top:8px}
+.ex-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:left;cursor:pointer;transition:border-color .15s, transform .1s}
+.ex-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.ex-card .t{font-size:13px;font-weight:600;margin-bottom:4px}
+.ex-card .d{font-size:12px;color:var(--muted)}
+
+/* Input */
+.input-area{padding:12px 16px 16px;background:linear-gradient(to top, var(--bg) 70%, transparent);flex-shrink:0}
+.input-box{max-width:800px;margin:0 auto;background:#2f2f2f;border:1px solid #3f3f3f;border-radius:24px;display:flex;align-items:end;padding:8px 8px 8px 16px;box-shadow:0 0 0 1px rgba(0,0,0,0.2)}
+.input-box:focus-within{border-color:#565656}
+.input-box textarea{flex:1;background:transparent;border:0;outline:0;color:var(--text);resize:none;max-height:160px;min-height:24px;font-size:15px;line-height:1.5;padding:6px 0;font-family:inherit}
+.send{width:36px;height:36px;border-radius:50%;border:0;background:white;color:black;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:opacity .15s, transform .1s;flex-shrink:0;margin-left:8px}
+.send:disabled{opacity:.3;cursor:not-allowed}
+.send:hover:not(:disabled){transform:scale(1.05)}
+.input-footer{max-width:800px;margin:8px auto 0;text-align:center;font-size:11px;color:var(--muted);line-height:1.4}
+.input-footer a{color:var(--muted);text-decoration:underline}
+
+/* Typing indicator */
+.typing{display:flex;gap:4px;align-items:center;padding:4px 0}
+.typing span{width:6px;height:6px;background:#888;border-radius:50%;animation:blink 1.4s infinite}
+.typing span:nth-child(2){animation-delay:.2s}
+.typing span:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+
+/* Mobile */
+@media(max-width:800px){.sidebar{display:none}.sidebar.open{display:flex;position:fixed;inset:0;z-index:20;width:80%;max-width:300px}.topbar{padding:0 12px}.chat-inner{padding:0 12px}}
+</style>
+</head>
+<body>
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-top">
+    <button class="new-chat" id="newChatBtn">+ New chat</button>
+  </div>
+  <div class="sidebar-history" id="history"></div>
+  <div class="sidebar-footer">
+    <div class="model-card">
+      <div><span class="dot"></span><b>TinyLLM 1M</b> · 20M tokens</div>
+      <div style="margin-top:6px;color:var(--muted)">d_model 96 · 6 layers · 6 heads · vocab 4096 · RoPE · RMSNorm · tied weights · context 256</div>
+      <div style="margin-top:6px">Checkpoint: <span id="ckptName">step200</span> · Loss ~3.1</div>
+    </div>
+    <a class="link" href="/llm_demo.html">🧪 Playground</a>
+    <a class="link" href="/game">🎮 Greedy Growers Game</a>
+    <a class="link" href="https://github.com/alrickdaley8-cpu/eferfefe" target="_blank">📂 GitHub</a>
+  </div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button id="menuBtn" style="display:none;background:var(--card);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:6px">☰</button>
+      <h1>TinyLLM Chat <span id="modelLabel">1M / 20M</span><span class="model-pill"><span class="dot"></span><span id="paramPill">1,058,016 params</span></span></h1>
+    </div>
+    <div class="settings">
+      <label>Temp<input id="temp" type="number" value="0.8" step="0.1" min="0.1" max="1.5" style="width:60px"></label>
+      <label>Max tokens<input id="maxTok" type="number" value="120" min="20" max="256" style="width:60px"></label>
+      <select id="systemPromptSel" style="max-width:180px">
+        <option value="You are TinyLLM, a tiny 1M parameter AI trained on 20M tokens of stories, QA, math and code. You are helpful, friendly, and concise.">Default helpful</option>
+        <option value="You are a creative storyteller for children. Write short imaginative stories.">Storyteller</option>
+        <option value="You are a math tutor. Explain simple arithmetic clearly.">Math tutor</option>
+        <option value="You are a coding assistant. Write short Python snippets.">Code assistant</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="chat" id="chat">
+    <div id="emptyState" class="empty">
+      <h2>What can I help with?</h2>
+      <p>This is TinyLLM — a 1M-parameter model trained from scratch on 20M tokens (Chinchilla-optimal). It runs entirely on CPU and fits in 4MB. Try the examples below.</p>
+      <div class="examples">
+        <div class="ex-card" data-prompt="Once upon a time, Lily went to the forest and found a magic key. What happened next?"><div class="t">Write a story</div><div class="d">Once upon a time, Lily went to the forest...</div></div>
+        <div class="ex-card" data-prompt="Q: What is 24 + 37? A:"><div class="t">Solve math</div><div class="d">Q: What is 24 + 37? A:</div></div>
+        <div class="ex-card" data-prompt="Explain why the sky is blue in simple words."><div class="t">Explain</div><div class="d">Explain why the sky is blue...</div></div>
+        <div class="ex-card" data-prompt="Write a Python function to add two numbers."><div class="t">Code</div><div class="d">Write a Python function to add two numbers.</div></div>
+      </div>
+    </div>
+    <div class="chat-inner" id="messages" style="display:none"></div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-box">
+      <textarea id="promptInput" rows="1" placeholder="Message TinyLLM..."></textarea>
+      <button class="send" id="sendBtn">↑</button>
+    </div>
+    <div class="input-footer">TinyLLM can make mistakes. Trained on 20M tokens synthetic corpus. Context 256 tokens. <a href="/MODEL_STATS.md" target="_blank">Model stats</a></div>
+  </div>
+</div>
+
+<script>
+const historyEl = document.getElementById('history');
+const messagesEl = document.getElementById('messages');
+const emptyEl = document.getElementById('emptyState');
+const promptInput = document.getElementById('promptInput');
+const sendBtn = document.getElementById('sendBtn');
+const newChatBtn = document.getElementById('newChatBtn');
+const tempEl = document.getElementById('temp');
+const maxTokEl = document.getElementById('maxTok');
+const systemSel = document.getElementById('systemPromptSel');
+const ckptNameEl = document.getElementById('ckptName');
+
+let chats = JSON.parse(localStorage.getItem('tinyllm_chats')||'[]');
+let activeChatId = localStorage.getItem('tinyllm_active') || null;
+
+function save(){
+  localStorage.setItem('tinyllm_chats', JSON.stringify(chats));
+  if(activeChatId) localStorage.setItem('tinyllm_active', activeChatId);
+}
+
+function uid(){ return Math.random().toString(36).slice(2,9); }
+
+function createChat(){
+  const id = uid();
+  const chat = {id, title:'New chat', messages:[], created:Date.now()};
+  chats.unshift(chat);
+  activeChatId = id;
+  save();
+  renderHistory();
+  renderMessages();
+  promptInput.focus();
+  return chat;
+}
+
+function getActive(){
+  return chats.find(c=>c.id===activeChatId) || null;
+}
+
+function renderHistory(){
+  historyEl.innerHTML='';
+  chats.forEach(c=>{
+    const div = document.createElement('div');
+    div.className='history-item'+(c.id===activeChatId?' active':'');
+    div.innerHTML=`<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${c.title}</span><span class="del" data-id="${c.id}">✕</span>`;
+    div.onclick=(e)=>{
+      if(e.target.classList.contains('del')){
+        e.stopPropagation();
+        chats = chats.filter(x=>x.id!==c.id);
+        if(activeChatId===c.id) activeChatId = chats[0]?.id || null;
+        save(); renderHistory(); renderMessages();
+        return;
+      }
+      activeChatId=c.id; save(); renderHistory(); renderMessages();
+    };
+    historyEl.appendChild(div);
+  });
+}
+
+function renderMessages(){
+  const chat = getActive();
+  if(!chat || chat.messages.length===0){
+    emptyEl.style.display='flex';
+    messagesEl.style.display='none';
+    messagesEl.innerHTML='';
+    return;
+  }
+  emptyEl.style.display='none';
+  messagesEl.style.display='flex';
+  messagesEl.innerHTML='';
+  chat.messages.forEach(m=>{
+    const group = document.createElement('div');
+    group.className='message-group';
+    const row = document.createElement('div');
+    row.className='msg-row';
+    const av = document.createElement('div');
+    av.className='avatar '+m.role;
+    av.textContent = m.role==='user' ? 'U' : m.role==='system' ? 'S' : 'T';
+    if(m.role==='assistant') av.textContent='◍';
+    const content = document.createElement('div');
+    content.className='msg-content';
+    const role = document.createElement('div');
+    role.className='role';
+    role.textContent = m.role==='user' ? 'You' : m.role==='assistant' ? 'TinyLLM 1M' : 'System';
+    const text = document.createElement('div');
+    text.className='text';
+    text.textContent = m.content;
+    content.appendChild(role);
+    content.appendChild(text);
+    // actions
+    if(m.role==='assistant'){
+      const actions = document.createElement('div');
+      actions.className='msg-actions';
+      actions.innerHTML='<button onclick="navigator.clipboard.writeText(this.parentNode.previousSibling.textContent)">Copy</button>';
+      content.appendChild(actions);
+    }
+    row.appendChild(av);
+    row.appendChild(content);
+    group.appendChild(row);
+    messagesEl.appendChild(group);
+  });
+  messagesEl.parentElement.scrollTop = messagesEl.parentElement.scrollHeight;
+}
+
+function autoResize(){
+  promptInput.style.height='auto';
+  promptInput.style.height = Math.min(promptInput.scrollHeight,160)+'px';
+}
+
+async function send(){
+  const text = promptInput.value.trim();
+  if(!text) return;
+  let chat = getActive();
+  if(!chat) chat = createChat();
+  if(chat.messages.length===0){
+    chat.title = text.slice(0,30)+(text.length>30?'…':'');
+  }
+  chat.messages.push({role:'user', content:text});
+  promptInput.value=''; autoResize(); renderHistory(); renderMessages();
+  sendBtn.disabled=true;
+
+  // add assistant placeholder with typing
+  const placeholder = {role:'assistant', content:'', typing:true};
+  chat.messages.push(placeholder);
+  renderMessages();
+
+  try{
+    // build chat history for API - we send full messages, backend will format
+    const systemPrompt = systemSel.value;
+    const allMsgs = [{role:'system', content: systemPrompt}, ...chat.messages.filter(m=>!m.typing).slice(-6)]; // last 6 to fit 256 ctx
+    const res = await fetch('/api/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        messages: allMsgs,
+        max_tokens: parseInt(maxTokEl.value)||120,
+        temperature: parseFloat(tempEl.value)||0.8,
+        top_k: 50
+      })
+    });
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    let full = data.generated || data.text || '';
+    // Extract only new assistant part if model returns full prompt - try to isolate after last assistant marker
+    // Backend already extracts, but fallback
+    placeholder.content = full;
+    placeholder.typing=false;
+    save(); renderHistory(); renderMessages();
+
+    // typing effect
+    const lastEl = messagesEl.lastElementChild?.querySelector('.text');
+    if(lastEl){
+      const finalText = full;
+      lastEl.textContent='';
+      let i=0;
+      function type(){
+        if(i<=finalText.length){
+          lastEl.textContent = finalText.slice(0,i);
+          i+=3;
+          messagesEl.parentElement.scrollTop = messagesEl.parentElement.scrollHeight;
+          requestAnimationFrame(type);
+        }
+      }
+      type();
+    }
+
+  }catch(e){
+    placeholder.content='Error: '+e.message;
+    placeholder.typing=false;
+    renderMessages();
+  }finally{
+    sendBtn.disabled=false;
+    promptInput.focus();
+  }
+}
+
+promptInput.addEventListener('input', autoResize);
+promptInput.addEventListener('keydown', e=>{
+  if(e.key==='Enter' && !e.shiftKey){
+    e.preventDefault(); send();
+  }
+});
+sendBtn.onclick=send;
+newChatBtn.onclick=()=>{createChat();};
+
+document.querySelectorAll('.ex-card').forEach(c=>{
+  c.onclick=()=>{
+    promptInput.value=c.dataset.prompt;
+    autoResize();
+    send();
+  };
+});
+
+// initial
+renderHistory();
+if(activeChatId && getActive()){
+  renderMessages();
+} else if(chats.length===0){
+  // no chat yet, show empty
+}
+
+// fetch checkpoint name
+fetch('/api/model_info').then(r=>r.json()).then(d=>{
+  if(d.checkpoint) ckptNameEl.textContent = d.checkpoint.replace('checkpoints/','').replace('.pt','');
+  if(d.params) document.getElementById('paramPill').textContent = Number(d.params).toLocaleString()+' params';
+}).catch(()=>{});
+
+// mobile menu
+document.getElementById('menuBtn').onclick=()=>document.getElementById('sidebar').classList.toggle('open');
+</script>
+</body>
+</html>
