@@ -17,6 +17,7 @@ import torch
 import torch.nn.functional as F
 from tokenizers import Tokenizer
 
+from ai.answer import solve, verify
 from ai.finetune import format_prompt
 from ai.model import GPT, GPTConfig
 from ai.retrieve import Retriever
@@ -115,6 +116,7 @@ class Assistant:
     # ------------------------------------------------------------------ prompting
     def build_prompt(self, question: str, use_context: bool = True,
                      chat_template: bool = True) -> tuple[str, str | None, list[dict]]:
+        self._docs = []
         candidates: list[dict] = []
         ctx = None
         if use_context and SELF_CONTAINED.search(question):
@@ -124,6 +126,7 @@ class Assistant:
             self._skip_reason = None
         if use_context:
             hits = self.retriever.search(question, k=3)
+            self._docs = [doc for score, doc in hits if score >= MIN_CONTEXT_SCORE]
             for score, doc in hits:
                 candidates.append({"name": doc["name"], "score": round(score, 2),
                                    "summary": doc.get("summary", "")[:110]})
@@ -136,8 +139,10 @@ class Assistant:
                 if len(named) == 2:
                     ctx = (f"(1) {self.retriever.context_of(named[0][1])}\n"
                            f"(2) {self.retriever.context_of(named[1][1])}")
+                    self._docs = [named[0][1], named[1][1]]
                 else:
                     ctx = self.retriever.context_of(hits[0][1])
+                    self._docs = [hits[0][1]] + self._docs[1:]
         q = f"Context: {ctx}\nQuestion: {question}" if ctx else question
         prompt = format_prompt(q) if chat_template else q
         return prompt, ctx, candidates
@@ -146,7 +151,7 @@ class Assistant:
     @torch.inference_mode()
     def stream(self, question: str, max_tokens: int = 160, temperature: float = 0.7,
                top_k: int = 40, top_p: float = 0.9, use_context: bool = True,
-               chat_template: bool = True) -> Iterator[dict]:
+               chat_template: bool = True, grounded: bool = True) -> Iterator[dict]:
         """Yield the whole thought process: retrieval → prompt → token-by-token decoding."""
         t0 = time.time()
         prompt, ctx, cands = self.build_prompt(question, use_context, chat_template)
@@ -163,6 +168,11 @@ class Assistant:
             else:
                 yield {"type": "thought", "kind": "context",
                        "text": "no confident match — answering without context"}
+
+        truth = solve(question, getattr(self, "_docs", [])) if grounded else None
+        if truth:
+            yield {"type": "thought", "kind": "check",
+                   "text": f"ground truth available from the {truth['kind']}: {truth['answer'][:120]}"}
 
         ids = self.tok.encode(prompt).ids
         keep = self.model.cfg.block_size - max_tokens
@@ -259,8 +269,19 @@ class Assistant:
         if not text and reasoning:
             # the model never closed its <think> block: fall back to its last line
             text = reasoning.strip().splitlines()[-1]
+        checked = verify(text, truth)
+        if truth and checked["status"] == "corrected":
+            reasoning = reasoning or "\n".join(truth["steps"])
+            yield {"type": "thought", "kind": "correction",
+                   "text": "the generated answer disagreed with the retrieved record — "
+                           "replacing it with the grounded answer"}
+        elif truth:
+            yield {"type": "thought", "kind": "verified",
+                   "text": "the generated answer matches the retrieved record"}
         dt = time.time() - t_gen
-        yield {"type": "done", "answer": text, "reasoning": reasoning, "raw": raw, "context": ctx,
+        yield {"type": "done", "answer": checked["final"], "model_answer": text,
+               "verification": checked["status"], "grounded_answer": checked["truth"],
+               "reasoning": reasoning, "raw": raw, "context": ctx,
                "stats": {"prompt_tokens": len(ids), "generated_tokens": len(out_ids),
                          "tok_per_s": round(len(out_ids) / dt, 1) if dt else 0,
                          "total_s": round(time.time() - t0, 2)},

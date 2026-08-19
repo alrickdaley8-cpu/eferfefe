@@ -125,7 +125,8 @@ class Handler(BaseHTTPRequestHandler):
                                temperature=float(req.get("temperature", 0.7)),
                                top_k=int(req.get("top_k", 40)),
                                use_context=bool(req.get("use_context", True)),
-                               chat_template=bool(req.get("chat_template", True)))
+                               chat_template=bool(req.get("chat_template", True)),
+                               grounded=bool(req.get("grounded", True)))
             return self._send(200, json.dumps(out))
 
         if self.path == "/chat/stream":
@@ -153,7 +154,8 @@ class Handler(BaseHTTPRequestHandler):
                                        temperature=float(req.get("temperature", 0.7)),
                                        top_k=int(req.get("top_k", 40)),
                                        use_context=bool(req.get("use_context", True)),
-                                       chat_template=bool(req.get("chat_template", True))):
+                                       chat_template=bool(req.get("chat_template", True)),
+                                       grounded=bool(req.get("grounded", True))):
                         emit(ev)
             except (BrokenPipeError, ConnectionResetError):
                 return

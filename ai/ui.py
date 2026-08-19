@@ -42,6 +42,8 @@ header{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:14px;align-items:center;
 .spin{width:9px;height:9px;border:2px solid var(--accent2);border-right-color:transparent;
   border-radius:50%;display:inline-block;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+.vbadge{display:inline-block;margin-top:8px;font-size:11px;letter-spacing:.5px;
+  text-transform:uppercase;border:1px solid;border-radius:999px;padding:2px 9px}
 .cursor{display:inline-block;width:7px;height:15px;background:var(--accent);vertical-align:-2px;
   animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:0}}
@@ -137,6 +139,7 @@ MAIN = r"""
   <section class="card sec">
     <h2>Decoding</h2>
     <div class="ctrl"><span>Grounding (RAG)</span><div class="switch on" id="rag"></div></div>
+    <div class="ctrl"><span>Verified answers</span><div class="switch on" id="grounded"></div></div>
     <div class="ctrl"><span>Chat template</span><div class="switch on" id="tpl"></div></div>
     <div class="ctrl"><span>Show reasoning inline</span><div class="switch on" id="showthink"></div></div>
     <div class="ctrl"><span>Careful mode (low temp)</span><div class="switch" id="careful"></div></div>
@@ -162,11 +165,11 @@ const EXAMPLES=["What is beautifulsoup4?","Does fastapi depend on pydantic?",
  "Which has more dependencies, fastapi or flask?","How many times does the letter p appear in package?",
  "What comes next: 4, 11, 18, 25, 32?","Which package should I use for progress bars?",
  "Who won the 2038 World Cup?"];
-let busy=false, opts={rag:true,tpl:true,showthink:true,careful:false};
+let busy=false, opts={rag:true,tpl:true,showthink:true,careful:false,grounded:true};
 
 $("chips").innerHTML=EXAMPLES.map(e=>`<span class="chip">${esc(e)}</span>`).join("");
 $("chips").onclick=e=>{if(e.target.classList.contains("chip")){$("q").value=e.target.textContent;send();}};
-["rag","tpl","showthink","careful"].forEach(k=>$(k).onclick=()=>{opts[k]=!opts[k];$(k).classList.toggle("on",opts[k]);});
+["rag","tpl","showthink","careful","grounded"].forEach(k=>$(k).onclick=()=>{opts[k]=!opts[k];$(k).classList.toggle("on",opts[k]);});
 $("temp").oninput=e=>$("tempV").textContent=(e.target.value/100).toFixed(2);
 $("topk").oninput=e=>$("topkV").textContent="top-k "+e.target.value;
 $("maxt").oninput=e=>$("maxtV").textContent=e.target.value+" tokens";
@@ -276,7 +279,12 @@ async function send(){
              <span class="g"><i style="width:${(a.p*100).toFixed(1)}%"></i></span>
              <span class="p">${(a.p*100).toFixed(0)}%</span></div>`).join("")+`</div>`;
       }else if(ev.type==="done"){
-        body.innerHTML=esc(ev.answer||"(empty answer)");
+        const badge={ok:['verified','#2dd4bf'],corrected:['corrected from knowledge base','#fbbf24'],
+                     unchecked:['unverified','#8b98ad']}[ev.verification]||["","#8b98ad"];
+        body.innerHTML=esc(ev.answer||"(empty answer)")+(badge[0]?
+          `<div class="vbadge" style="color:${badge[1]};border-color:${badge[1]}44">${badge[0]}</div>`:"");
+        if(ev.verification==="corrected"&&ev.model_answer)
+          thought("model said (rejected)",esc(ev.model_answer));
         const sp=rbox.querySelector(".spin"); if(sp) sp.remove();
         if(ev.reasoning){
           rbox.style.display=opts.showthink?"":"none";

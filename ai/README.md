@@ -201,6 +201,38 @@ CORS-enabled.
 The same trace is available in the terminal with `python -m ai.chat --think "..."`, and
 `python -m ai.chat --list` prints the checkpoints.
 
+## Answer correctness — the grounded layer
+
+The 5M model is a good router and a passable phraser, but a hopeless database and a worse
+calculator: asked 80 questions with known answers it got **36.2%** right. `ai/answer.py` adds the
+part of the system that is allowed to be *certain*:
+
+* **`solve()`** produces a ground-truth answer (with the same `<think>` steps the model was trained
+  to write) from either the retrieved package record — licence, version, dependencies, Python
+  requirement, author, homepage, install/import, dependency membership, two-package comparisons —
+  or a small calculator for arithmetic, averages, sequences and letter counting
+* **`verify()`** compares what the model actually generated against that ground truth. Numbers and
+  version strings must match exactly; a flipped yes/no is a failure. The result is one of
+  **verified** (model was right), **corrected** (grounded answer replaces it) or **unchecked**
+  (nothing to check against, e.g. an open-ended question)
+* the chat UI labels every answer with that status, and the rejected model text is kept visible in
+  the thinking panel — the system never silently pretends the model knew something
+
+`python -m ai.eval --n 80` scores both paths on questions generated from the knowledge base:
+
+| path | accuracy |
+|---|---|
+| raw model output | 36.2% |
+| **grounded + verified** | **86.2%** |
+
+Bugs this found and fixed along the way: "which Python version does X need" was being answered by
+the *release version* branch; "does X depend on Y" resolved the subject package by BM25 rank
+instead of by the name in the question (so `does scikit-optimize depend on numpy` inspected
+*numpy's* dependencies); and version numbers were passing verification on partial token overlap.
+
+Turn it off with the **Verified answers** switch in the UI or `grounded=false` in the API to see the
+raw model, which is the honest comparison as pretraining continues.
+
 ## Inference speed
 
 Generation used to re-run the whole prompt through the model for **every** token — 373 prompt
