@@ -235,15 +235,27 @@ a{color:var(--accent);text-decoration:none}
   <div class="modal-card">
     <div class="modal-header"><h3>Chat Settings</h3><button class="icon-btn" id="closeSettings">✕</button></div>
     <div class="modal-body">
-      <div class="setting"><label>System prompt</label><textarea id="systemPrompt">You are TinyLLM, a knowledgeable assistant that can answer basically any question concisely and accurately. You know geography, science, history, math, and can tell stories and write code. You are 1M parameters trained on 20M tokens. Be helpful, friendly, and concise.</textarea><div class="hint">Guides assistant behavior. Few-shot examples are added automatically to improve instruction following.</div></div>
+      <div class="setting"><label>System prompt (In-Depth Mode)</label><textarea id="systemPrompt">You are TinyLLM, a knowledgeable and powerful assistant with 1M parameters trained on 20M tokens. You can answer basically any question and you explain things MORE IN DEPTH.
+
+Guidelines:
+- For factual questions: Give short answer first, then in-depth explanation with steps, examples, why it matters, history, fun facts.
+- For concepts: Define simply, then go deep into how it works step-by-step, with analogies and real-world examples.
+- For how-to: Provide detailed numbered steps.
+- For math: Show reasoning step-by-step.
+- Always be thorough, educational, and engaging. Use markdown with headers and bullet points when helpful.
+- You know geography, science, history, math, code, commonsense, philosophy.
+- Even though you are tiny (4MB, 1M params), you punch above weight via RAG knowledge and chain-of-thought.
+
+You explain things more in depth than standard AI.</textarea><div class="hint">In-depth mode: explains step-by-step with examples, why it matters, fun facts. Few-shot + RAG help tiny model be powerful.</div></div>
       <div class="grid2">
-        <div class="setting"><label>Temperature</label><input type="number" id="temp" value="0.8" step="0.1" min="0.1" max="1.5"><div class="hint">0.1 deterministic, 1.5 creative</div></div>
-        <div class="setting"><label>Max tokens</label><input type="number" id="maxTok" value="150" min="20" max="256"><div class="hint">Reply length, max 256-ctx</div></div>
+        <div class="setting"><label>Temperature</label><input type="number" id="temp" value="0.7" step="0.1" min="0.1" max="1.5"><div class="hint">0.7 balanced for in-depth, 0.3 factual</div></div>
+        <div class="setting"><label>Max tokens (In-Depth)</label><input type="number" id="maxTok" value="220" min="20" max="256"><div class="hint">220 for in-depth explanations, longer = more detailed</div></div>
         <div class="setting"><label>Top-k</label><input type="number" id="topK" value="50" min="1" max="200"></div>
-        <div class="setting"><label>Top-p</label><input type="number" id="topP" value="0.92" step="0.01" min="0.1" max="1.0"></div>
+        <div class="setting"><label>Top-p</label><input type="number" id="topP" value="0.95" step="0.01" min="0.1" max="1.0"></div>
       </div>
+      <div class="setting"><label><input type="checkbox" id="powerfulToggle" checked> 🚀 Powerful Mode: In-depth, step-by-step, examples, chain-of-thought</label></div>
       <div class="setting"><label><input type="checkbox" id="streamToggle" checked> Stream tokens (SSE) — ChatGPT-style typing</label></div>
-      <div class="setting"><label><input type="checkbox" id="fewShotToggle" checked> Use few-shot (improves tiny model)</label></div>
+      <div class="setting"><label><input type="checkbox" id="fewShotToggle" checked> Use few-shot + RAG (makes 1M answer any question)</label></div>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn btn-primary" id="saveSettings" style="flex:1">Save</button>
         <button class="btn" id="resetSettings" style="flex:1">Reset</button>
@@ -310,12 +322,13 @@ let chats = JSON.parse(localStorage.getItem('tinyllm_chats_v2')||'[]');
 let activeChatId = localStorage.getItem('tinyllm_active_v2') || null;
 let settings = JSON.parse(localStorage.getItem('tinyllm_settings')||'{}');
 if(!settings.systemPrompt) settings.systemPrompt = document.getElementById('systemPrompt').value;
-if(settings.temp===undefined) settings.temp=0.8;
-if(settings.maxTok===undefined) settings.maxTok=150;
+if(settings.temp===undefined) settings.temp=0.7;
+if(settings.maxTok===undefined) settings.maxTok=220;
 if(settings.topK===undefined) settings.topK=50;
-if(settings.topP===undefined) settings.topP=0.92;
+if(settings.topP===undefined) settings.topP=0.95;
 if(settings.stream===undefined) settings.stream=true;
 if(settings.fewShot===undefined) settings.fewShot=true;
+if(settings.powerful===undefined) settings.powerful=true;
 
 function saveAll(){
   localStorage.setItem('tinyllm_chats_v2', JSON.stringify(chats));
@@ -422,16 +435,17 @@ async function regenerate(idx){
 
 // Settings modal
 const modal=document.getElementById('settingsModal');
-document.getElementById('settingsBtn').onclick=()=>{ modal.classList.add('open'); document.getElementById('systemPrompt').value=settings.systemPrompt; document.getElementById('temp').value=settings.temp; document.getElementById('maxTok').value=settings.maxTok; document.getElementById('topK').value=settings.topK; document.getElementById('topP').value=settings.topP; document.getElementById('streamToggle').checked=settings.stream; document.getElementById('fewShotToggle').checked=settings.fewShot; };
+document.getElementById('settingsBtn').onclick=()=>{ modal.classList.add('open'); document.getElementById('systemPrompt').value=settings.systemPrompt; document.getElementById('temp').value=settings.temp; document.getElementById('maxTok').value=settings.maxTok; document.getElementById('topK').value=settings.topK; document.getElementById('topP').value=settings.topP; document.getElementById('streamToggle').checked=settings.stream; document.getElementById('fewShotToggle').checked=settings.fewShot; document.getElementById('powerfulToggle').checked=settings.powerful; };
 document.getElementById('closeSettings').onclick=()=>modal.classList.remove('open');
 document.getElementById('saveSettings').onclick=()=>{
   settings.systemPrompt=document.getElementById('systemPrompt').value;
-  settings.temp=parseFloat(document.getElementById('temp').value)||0.8;
-  settings.maxTok=parseInt(document.getElementById('maxTok').value)||150;
+  settings.temp=parseFloat(document.getElementById('temp').value)||0.7;
+  settings.maxTok=parseInt(document.getElementById('maxTok').value)||220;
   settings.topK=parseInt(document.getElementById('topK').value)||50;
-  settings.topP=parseFloat(document.getElementById('topP').value)||0.92;
+  settings.topP=parseFloat(document.getElementById('topP').value)||0.95;
   settings.stream=document.getElementById('streamToggle').checked;
   settings.fewShot=document.getElementById('fewShotToggle').checked;
+  settings.powerful=document.getElementById('powerfulToggle').checked;
   saveAll(); modal.classList.remove('open');
 };
 document.getElementById('resetSettings').onclick=()=>{ localStorage.removeItem('tinyllm_settings'); location.reload(); };
@@ -466,10 +480,22 @@ async function send(isRegen=false){
   let fullContent='';
 
   try{
-    const sysPrompt = settings.systemPrompt;
+    let sysPrompt = settings.systemPrompt;
+    // Powerful mode adds extra in-depth instruction if not already in system prompt
+    if(settings.powerful && !sysPrompt.toLowerCase().includes('in depth')){
+      sysPrompt += "\n\nYou are in POWERFUL IN-DEPTH mode: Always explain thoroughly with: 1) short answer, 2) in-depth step-by-step explanation, 3) examples, 4) why it matters, 5) fun facts. Use markdown.";
+    }
     const allMsgs = [{role:'system',content:sysPrompt}, ...chat.messages.filter(m=>!m.content.startsWith('▌')).slice(-8)]; // last 8
     // remove placeholder from history for request (will be replaced)
-    const reqMsgs = allMsgs.slice(0,-1);
+    let reqMsgs = allMsgs.slice(0,-1);
+    // Powerful mode: if last user message is short and not asking for in-depth, add instruction for in-depth answer
+    if(settings.powerful && reqMsgs.length>0){
+      let last = reqMsgs[reqMsgs.length-1];
+      if(last.role==='user' && last.content.length < 100 && !last.content.toLowerCase().includes('in depth') && !last.content.toLowerCase().includes('explain')){
+        // Clone and add in-depth request
+        reqMsgs = reqMsgs.slice(0,-1).concat([{role:'user', content: last.content + "\n\nPlease explain in depth, step by step, with examples, why it matters, and give detailed thorough answer."}]);
+      }
+    }
 
     if(settings.stream){
       // Streaming via fetch + SSE

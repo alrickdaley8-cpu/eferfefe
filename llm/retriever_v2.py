@@ -66,12 +66,21 @@ KNOWLEDGE_BASE_V2 = [
     "Internet: Websites have domain like .com. Browser like Chrome shows websites. Email sends messages.",
 ]
 
+# Deep in-depth knowledge
+try:
+    from .deep_knowledge import DEEP_KNOWLEDGE
+    DEEP_KB = [entry["deep"] for entry in DEEP_KNOWLEDGE]
+    DEEP_KB_SHORT = {entry["topic"]: entry for entry in DEEP_KNOWLEDGE}
+except:
+    DEEP_KB = []
+    DEEP_KB_SHORT = {}
+
 # Also include all original knowledge base
 try:
     from .retriever import KNOWLEDGE_BASE as OLD_KB
-    FULL_KB = OLD_KB + KNOWLEDGE_BASE_V2
+    FULL_KB = OLD_KB + KNOWLEDGE_BASE_V2 + DEEP_KB
 except:
-    FULL_KB = KNOWLEDGE_BASE_V2
+    FULL_KB = KNOWLEDGE_BASE_V2 + DEEP_KB
 
 def retrieve_v2(query, top_k=3):
     """Improved retrieval with better scoring"""
