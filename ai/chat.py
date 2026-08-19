@@ -40,13 +40,17 @@ LABELS = {
     "best.pt":      ("Base (best val)", "pretraining checkpoint with the lowest validation loss"),
     "base_demo.pt": ("Base snapshot", "frozen early pretraining checkpoint"),
 }
-HIDDEN = {"ckpt.pt"}          # optimiser-state checkpoint, not a servable model
+HIDDEN = {"ckpt.pt"}          # optimiser-state checkpoints are not servable models
+
+
+def _servable(fn: str) -> bool:
+    return fn.endswith(".pt") and fn not in HIDDEN and not fn.endswith("_ckpt.pt")
 
 
 def list_checkpoints() -> list[dict]:
     out = []
     for fn in sorted(os.listdir(CKPT_DIR)):
-        if not fn.endswith(".pt") or fn in HIDDEN:
+        if not _servable(fn):
             continue
         path = os.path.join(CKPT_DIR, fn)
         label, desc = LABELS.get(fn, (fn, ""))
