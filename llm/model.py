@@ -92,10 +92,20 @@ class CausalSelfAttention(nn.Module):
 class MLP(nn.Module):
     def __init__(self, cfg: TinyConfig):
         super().__init__()
-        self.fc1 = nn.Linear(cfg.d_model, cfg.d_ff, bias=False)
-        self.fc2 = nn.Linear(cfg.d_ff, cfg.d_model, bias=False)
+        self.use_swiglu = getattr(cfg, 'use_swiglu', False)
+        if self.use_swiglu:
+            # SwiGLU: gate, up, down — keeps params similar if d_ff=256 vs 384 GELU (3*96*256=73k)
+            self.gate = nn.Linear(cfg.d_model, cfg.d_ff, bias=False)
+            self.up = nn.Linear(cfg.d_model, cfg.d_ff, bias=False)
+            self.down = nn.Linear(cfg.d_ff, cfg.d_model, bias=False)
+        else:
+            self.fc1 = nn.Linear(cfg.d_model, cfg.d_ff, bias=False)
+            self.fc2 = nn.Linear(cfg.d_ff, cfg.d_model, bias=False)
     def forward(self, x):
-        return self.fc2(F.gelu(self.fc1(x)))
+        if self.use_swiglu:
+            return self.down(F.silu(self.gate(x)) * self.up(x))
+        else:
+            return self.fc2(F.gelu(self.fc1(x)))
 
 class Block(nn.Module):
     def __init__(self, cfg: TinyConfig):
@@ -104,9 +114,10 @@ class Block(nn.Module):
         self.attn = CausalSelfAttention(cfg)
         self.ln2 = RMSNorm(cfg.d_model)
         self.mlp = MLP(cfg)
+        self.dropout = nn.Dropout(cfg.dropout) if cfg.dropout>0 else nn.Identity()
     def forward(self, x, cos, sin):
-        x = x + self.attn(self.ln1(x), cos, sin)
-        x = x + self.mlp(self.ln2(x))
+        x = x + self.dropout(self.attn(self.ln1(x), cos, sin))
+        x = x + self.dropout(self.mlp(self.ln2(x)))
         return x
 
 class TinyLLM(nn.Module):
