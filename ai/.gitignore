@@ -1,0 +1,5 @@
+data/corpus/
+data/*.bin
+data/*.npy
+checkpoints/
+__pycache__/
