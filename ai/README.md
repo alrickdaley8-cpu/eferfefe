@@ -228,6 +228,22 @@ into the standalone app at `/app`, and the landing page embeds the identical wid
 *Talk to it*. Served by `ai.serve` the widget talks to the same origin; opened as a static file it
 detects that no API is reachable, explains how to start one, and accepts `?api=http://host:8000`.
 
+### Making the page work everywhere
+
+`index.html` carries the chat client, so it has to cope with three different situations:
+
+* **served by `ai.serve`** — the API is same-origin, everything just works
+* **served by any other static server** (a preview on another port, `python -m http.server`,
+  GitHub Pages) — the client probes for a reachable API: explicit `?api=…`, then the last one that
+  worked (`localStorage`), then same origin, then the sibling `8000-` host when the page is opened
+  through a `{port}-{host}` preview URL, then `http://localhost:8000`. The API sends
+  `Access-Control-Allow-Origin: *` so those cross-origin calls are allowed.
+* **no server at all** — the widget stays hidden and the page explains how to start one
+
+The server also starts happily **before any checkpoint exists**: `/models` answers
+`ready:false`, chat requests return a clear "no checkpoint yet" message instead of a stack trace,
+the composer disables itself, and the chat unlocks by itself once the trainer writes step 250.
+
 API: `GET /models`, `GET /status`, `POST /chat`, `POST /chat/stream` (SSE: `thought` → `token` → `done`),
 CORS-enabled.
 The same trace is available in the terminal with `python -m ai.chat --think "..."`, and

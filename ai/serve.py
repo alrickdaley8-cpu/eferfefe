@@ -24,6 +24,9 @@ import torch
 from ai.chat import CKPT_DIR, Assistant, default_ckpt, list_checkpoints
 from ai.ui import PAGE
 
+NOT_READY = ("The model has no checkpoint yet — training writes the first one at step 250. "
+             "The page, retrieval and the grounded answer layer are already live.")
+
 INDEX = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "index.html")
 
 
@@ -41,13 +44,16 @@ _current = {"file": None}
 MAX_CACHED = 2
 
 
-def get_assistant(file: str | None = None) -> Assistant:
-    """Load (and cache) a checkpoint by file name; reload it if training rewrote it."""
-    file = file or _current["file"] or os.path.basename(default_ckpt())
-    path = os.path.join(CKPT_DIR, file)
-    if not os.path.exists(path):
-        path = default_ckpt()
-        file = os.path.basename(path)
+def get_assistant(file: str | None = None) -> Assistant | None:
+    """Load (and cache) a checkpoint by name; None while training has not written one yet."""
+    try:
+        file = file or _current["file"] or os.path.basename(default_ckpt())
+        path = os.path.join(CKPT_DIR, file)
+        if not os.path.exists(path):
+            path = default_ckpt()
+            file = os.path.basename(path)
+    except FileNotFoundError:
+        return None
     mtime = os.path.getmtime(path)
     with LOCK:
         hit = _cache.get(file)
@@ -103,12 +109,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, PAGE, "text/html; charset=utf-8")
         if self.path == "/models":
             models = list_checkpoints()
-            cur = _current["file"] or os.path.basename(default_ckpt())
+            a = get_assistant(_current["file"])
+            if a is None:                       # server is up, model is not trained yet
+                return self._send(200, json.dumps({
+                    "models": [], "current": None, "ready": False, "params": 5_015_808,
+                    "kb": 0, "vocab": 8192, "block_size": 512,
+                    "message": "no checkpoint yet — the trainer writes its first one at step 250"}))
+            cur = os.path.basename(a.path)
             for m in models:
                 m["loaded"] = m["file"] == cur
-            a = get_assistant(cur)
             return self._send(200, json.dumps({
-                "models": models, "current": cur, "params": a.model.num_params(),
+                "models": models, "current": cur, "ready": True, "params": a.model.num_params(),
                 "kb": len(a.retriever.docs), "vocab": a.model.cfg.vocab_size,
                 "block_size": a.model.cfg.block_size}))
         if self.path == "/status":
@@ -119,6 +130,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/chat":
             req = self._body()
             a = get_assistant(req.get("model"))
+            if a is None:
+                return self._send(503, json.dumps({"error": "model not ready",
+                                                   "answer": NOT_READY}))
             with LOCK:
                 out = a.answer(req.get("message", ""),
                                max_tokens=int(req.get("tokens", 160)),
@@ -144,6 +158,13 @@ class Handler(BaseHTTPRequestHandler):
 
             try:
                 a = get_assistant(req.get("model"))
+                if a is None:
+                    emit({"type": "error", "text": NOT_READY})
+                    emit({"type": "done", "answer": NOT_READY, "reasoning": "",
+                          "verification": "unchecked", "context": None,
+                          "stats": {"prompt_tokens": 0, "generated_tokens": 0,
+                                    "tok_per_s": 0, "total_s": 0}})
+                    return
                 emit({"type": "thought", "kind": "model",
                       "text": f"{os.path.basename(a.path)} · {a.stage} checkpoint · "
                               f"step {a.step:,} ({a.step*8192/1e6:.1f}M tokens) · "
@@ -177,7 +198,9 @@ def main() -> None:
     # one thread is measurably fastest for single-stream decoding of a model this small
     os.environ.setdefault("LM_THREADS", str(args.threads))
     torch.set_num_threads(args.threads)
-    get_assistant()
+    if get_assistant() is None:
+        print("[serve] no checkpoint yet — serving the site; chat unlocks when one appears",
+              flush=True)
     print(f"[serve] http://0.0.0.0:{args.port}", flush=True)
     ThreadingHTTPServer(("0.0.0.0", args.port), Handler).serve_forever()
 

@@ -158,7 +158,30 @@ MAIN = r"""
 </aside>
 """
 
-JS = r"""const API=(new URLSearchParams(location.search).get("api")||"").replace(/\/$/,"");
+JS = r"""// Find a reachable model server: explicit ?api=, then same origin, then the sibling preview
+// port when this page is opened through an e2b preview host, then a local server.
+let API="";
+function apiCandidates(){
+  const out=[];
+  const q=new URLSearchParams(location.search).get("api");
+  if(q) out.push(q.replace(/\/$/,""));
+  const saved=localStorage.getItem("tinylm_api");
+  if(saved) out.push(saved);
+  if(location.protocol!=="file:") out.push("");                      // same origin
+  const m=location.hostname.match(/^(\d+)-(.+)$/);                   // e.g. 8080-sandbox.e2b.app
+  if(m && m[1]!=="8000") out.push(`${location.protocol}//8000-${m[2]}`);
+  out.push("http://localhost:8000");
+  return [...new Set(out)];
+}
+async function resolveAPI(){
+  for(const base of apiCandidates()){
+    try{
+      const r=await fetch(base+"/models",{mode:"cors"});
+      if(r.ok){ API=base; if(base) localStorage.setItem("tinylm_api",base); return true; }
+    }catch(e){}
+  }
+  return false;
+}
 const $=id=>document.getElementById(id);
 const EXAMPLES=["What is beautifulsoup4?","Does fastapi depend on pydantic?",
  "Do requests and black use the same license?","What is 3471 + 2856?",
@@ -199,6 +222,13 @@ function clearThoughts(){$("think").innerHTML="";}
 
 async function loadModels(){
   const d=await (await fetch(API+"/models")).json();
+  const ready=d.ready!==false;
+  $("q").disabled=!ready; $("go").disabled=!ready;
+  if(!ready){
+    $("model").innerHTML='<option>no checkpoint yet</option>';
+    $("mdesc").textContent=d.message||"training has not produced a checkpoint yet";
+    return;
+  }
   $("model").innerHTML=d.models.map(m=>
     `<option value="${m.file}" data-desc="${esc(m.description)} · step ${m.step.toLocaleString()} · ${(m.tokens/1e6).toFixed(1)}M tokens seen"
       ${m.loaded?"selected":""}>${esc(m.label)} — ${m.stage}</option>`).join("");
@@ -303,7 +333,14 @@ async function send(){
   busy=false; $("go").disabled=false; $("q").focus();
 }
 
-loadModels(); loadStatus(); setInterval(loadStatus,15000); setInterval(loadModels,120000);
+// `onReady(found)` lets the landing page reveal the widget only once a server answers
+async function initChat(onReady){
+  const found=await resolveAPI();
+  if(onReady) onReady(found);
+  if(!found) return;
+  loadModels(); loadStatus(); setInterval(loadStatus,15000); setInterval(loadModels,120000);
+}
+if(!window.TINYLM_MANUAL_INIT) initChat();
 """
 
 PAGE = """<!doctype html>

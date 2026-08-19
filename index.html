@@ -167,10 +167,10 @@ retrieval-grounded chain-of-thought reasoning — all trained on <b>2 CPU cores<
   <span class="badge"><b>8192</b> vocab</span>
   <span class="badge"><b>512</b> context</span>
   <span class="badge">RoPE · SwiGLU · RMSNorm · tied embeddings</span>
-  <span class="badge">updated 2026-08-19 17:23 UTC</span>
+  <span class="badge">updated 2026-08-19 18:38 UTC</span>
 </div>
 
-<div class="cards"><div class="stat"><div class="k">parameters</div><div class="v">5,015,808</div><div class="s">4 layers · d=256 · 8 heads · RoPE · SwiGLU</div></div><div class="stat"><div class="k">pretraining</div><div class="v">2.0M / 100M</div><div class="s">tokens of PyPI source text</div></div><div class="stat"><div class="k">val loss</div><div class="v">4.83</div><div class="s">perplexity 125</div></div><div class="stat"><div class="k">knowledge base</div><div class="v">11,922</div><div class="s">packages available to retrieval</div></div><div class="stat"><div class="k">instruction data</div><div class="v">288k examples</div><div class="s">146k QA + 142.5k chain-of-thought</div></div><div class="stat"><div class="k">hardware</div><div class="v">2 vCPU</div><div class="s">no GPU, fp32, ~4,000 tok/s</div></div></div>
+<div class="cards"><div class="stat"><div class="k">parameters</div><div class="v">5,015,808</div><div class="s">4 layers · d=256 · 8 heads · RoPE · SwiGLU</div></div><div class="stat"><div class="k">pretraining</div><div class="v">0.0M / 100M</div><div class="s">tokens of PyPI source text</div></div><div class="stat"><div class="k">val loss</div><div class="v">—</div><div class="s"></div></div><div class="stat"><div class="k">knowledge base</div><div class="v">11,922</div><div class="s">packages available to retrieval</div></div><div class="stat"><div class="k">instruction data</div><div class="v">288k examples</div><div class="s">146k QA + 142.5k chain-of-thought</div></div><div class="stat"><div class="k">hardware</div><div class="v">2 vCPU</div><div class="s">no GPU, fp32, ~4,000 tok/s</div></div></div>
 
 <h2>Pipeline</h2>
 <div class="flow">
@@ -186,16 +186,7 @@ retrieval-grounded chain-of-thought reasoning — all trained on <b>2 CPU cores<
 <h2>Training curves</h2>
 <div class="panel">
   <h3>Pretraining loss (EMA)</h3>
-  <svg viewBox="0 0 680 210" class="chart" role="img" aria-label="pretraining loss">
-  <defs><linearGradient id="g5eead4" x1="0" x2="0" y1="0" y2="1">
-    <stop offset="0%" stop-color="#5eead4" stop-opacity=".28"/>
-    <stop offset="100%" stop-color="#5eead4" stop-opacity="0"/></linearGradient></defs>
-  <line x1="34" y1="168.4" x2="666" y2="168.4" class="grid"/><text x="26" y="172.4" class="ylab">4.6</text><line x1="34" y1="122.7" x2="666" y2="122.7" class="grid"/><text x="26" y="126.7" class="ylab">5.9</text><line x1="34" y1="77.1" x2="666" y2="77.1" class="grid"/><text x="26" y="81.1" class="ylab">7.2</text><line x1="34" y1="31.4" x2="666" y2="31.4" class="grid"/><text x="26" y="35.4" class="ylab">8.5</text>
-  <path d="M34.0,34.3 L104.3,66.8 L174.5,98.0 L244.8,117.8 L315.1,128.5 L385.3,141.4 L455.6,147.4 L525.9,154.3 L596.1,158.9 L666.4,165.5 L666.4,176.0 L34.0,176.0 Z" fill="url(#g5eead4)"/>
-  <path d="M34.0,34.3 L104.3,66.8 L174.5,98.0 L244.8,117.8 L315.1,128.5 L385.3,141.4 L455.6,147.4 L525.9,154.3 L596.1,158.9 L666.4,165.5" fill="none" stroke="#5eead4" stroke-width="2" stroke-linejoin="round"/>
-  <text x="34" y="202" class="xlab">0.2M tokens</text>
-  <text x="632" y="202" class="xlab" text-anchor="end">2.0M</text>
-</svg>
+  <p class="dim">not enough data yet</p>
   <h3>Validation loss</h3>
   <p class="dim">not enough data yet</p>
   
@@ -242,7 +233,7 @@ was built — the pipeline was still training, so treat them as a snapshot, not 
 <h2>Checkpoints</h2>
 <div class="panel"><table>
 <thead><tr><th>file</th><th>label</th><th>stage</th><th>step</th><th>tokens seen</th></tr></thead>
-<tbody><tr><td class='mono'>best.pt</td><td>Base (best val)</td><td>pretrain</td><td class='num'>250</td><td class='num'>2.0M</td></tr><tr><td class='mono'>model.pt</td><td>Base (latest)</td><td>pretrain</td><td class='num'>250</td><td class='num'>2.0M</td></tr></tbody></table></div>
+<tbody><tr><td colspan="5" class="dim">none yet</td></tr></tbody></table></div>
 
 <h2>Run it yourself</h2>
 <pre>git clone https://github.com/alrickdaley8-cpu/eferfefe
@@ -261,9 +252,10 @@ python -m ai.chat --think "does fastapi depend on pydantic?"
 python -m ai.serve --port 8000                # streaming chat UI</pre>
 
 <h2 id="talk">Talk to it</h2>
-<p class="dim" id="offline">This page is static. Start the model server with
-  <code>python -m ai.serve --port 8000</code> and open it there (or append
-  <code>?api=http://localhost:8000</code> to this URL) to chat with the model.</p>
+<p class="dim" id="offline">Looking for a model server… if none is running, start one with
+  <code>python -m ai.serve --port 8000</code> and reload, or point this page at a server with
+  <code>?api=https://host:8000</code>.</p>
+<p class="dim" id="apinote" style="font-size:12.5px"></p>
 <div id="chatapp" class="app" hidden>
 
 <main class="card chat">
@@ -315,8 +307,32 @@ python -m ai.serve --port 8000                # streaming chat UI</pre>
   page generated by <code>ai/make_page.py</code> · numbers are read straight from the training logs.
 </footer>
 </div>
+<script>window.TINYLM_MANUAL_INIT=true;</script>
 <script>
-const API=(new URLSearchParams(location.search).get("api")||"").replace(/\/$/,"");
+// Find a reachable model server: explicit ?api=, then same origin, then the sibling preview
+// port when this page is opened through an e2b preview host, then a local server.
+let API="";
+function apiCandidates(){
+  const out=[];
+  const q=new URLSearchParams(location.search).get("api");
+  if(q) out.push(q.replace(/\/$/,""));
+  const saved=localStorage.getItem("tinylm_api");
+  if(saved) out.push(saved);
+  if(location.protocol!=="file:") out.push("");                      // same origin
+  const m=location.hostname.match(/^(\d+)-(.+)$/);                   // e.g. 8080-sandbox.e2b.app
+  if(m && m[1]!=="8000") out.push(`${location.protocol}//8000-${m[2]}`);
+  out.push("http://localhost:8000");
+  return [...new Set(out)];
+}
+async function resolveAPI(){
+  for(const base of apiCandidates()){
+    try{
+      const r=await fetch(base+"/models",{mode:"cors"});
+      if(r.ok){ API=base; if(base) localStorage.setItem("tinylm_api",base); return true; }
+    }catch(e){}
+  }
+  return false;
+}
 const $=id=>document.getElementById(id);
 const EXAMPLES=["What is beautifulsoup4?","Does fastapi depend on pydantic?",
  "Do requests and black use the same license?","What is 3471 + 2856?",
@@ -357,6 +373,13 @@ function clearThoughts(){$("think").innerHTML="";}
 
 async function loadModels(){
   const d=await (await fetch(API+"/models")).json();
+  const ready=d.ready!==false;
+  $("q").disabled=!ready; $("go").disabled=!ready;
+  if(!ready){
+    $("model").innerHTML='<option>no checkpoint yet</option>';
+    $("mdesc").textContent=d.message||"training has not produced a checkpoint yet";
+    return;
+  }
   $("model").innerHTML=d.models.map(m=>
     `<option value="${m.file}" data-desc="${esc(m.description)} · step ${m.step.toLocaleString()} · ${(m.tokens/1e6).toFixed(1)}M tokens seen"
       ${m.loaded?"selected":""}>${esc(m.label)} — ${m.stage}</option>`).join("");
@@ -461,7 +484,21 @@ async function send(){
   busy=false; $("go").disabled=false; $("q").focus();
 }
 
-loadModels(); loadStatus(); setInterval(loadStatus,15000); setInterval(loadModels,120000);
+// `onReady(found)` lets the landing page reveal the widget only once a server answers
+async function initChat(onReady){
+  const found=await resolveAPI();
+  if(onReady) onReady(found);
+  if(!found) return;
+  loadModels(); loadStatus(); setInterval(loadStatus,15000); setInterval(loadModels,120000);
+}
+if(!window.TINYLM_MANUAL_INIT) initChat();
 
+</script>
+<script>
+initChat(found=>{
+  document.getElementById("chatapp").hidden=!found;
+  document.getElementById("offline").hidden=found;
+  if(found && API) document.getElementById("apinote").textContent="connected to "+(API||"this page");
+});
 </script>
 </body></html>
