@@ -26,9 +26,11 @@ OUT = os.path.join(ROOT, "index.html")   # the repository landing page
 SAMPLES = os.path.join(AI, "data", "samples.json")
 
 DEMO_PROMPTS = [
+    "What can you do?",
     "What license does black use?",
     "Does fastapi depend on pydantic?",
     "What is 3471 + 2856?",
+    "How do I read a text file in Python?",
     "Who won the 2038 World Cup?",
 ]
 
@@ -154,6 +156,7 @@ def render(d: dict, samples: list[dict]) -> str:
         <div class="vb {s.get('verification','unchecked')}">{
           {"ok": "verified against the knowledge base",
            "corrected": "corrected from the knowledge base",
+           "fallback": "model output rejected as noise — fallback reply",
            "unchecked": "unverified — raw model output, nothing to check it against"
            }.get(s.get('verification','unchecked'), '')}</div>
       </article>""" for s in samples)
@@ -212,6 +215,7 @@ pre{{background:#0d121a;border:1px solid var(--line);border-radius:12px;padding:
 .turn .vb.ok{{color:var(--accent);border-color:#5eead444}}
 .turn .vb.corrected{{color:#fbbf24;border-color:#fbbf2444}}
 .turn .vb.unchecked{{color:var(--dim);border-color:#8b98ad44}}
+.turn .vb.fallback{{color:#f87171;border-color:#f8717144}}
 .flow{{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}}
 .flowstep{{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;
  font-size:13px}}

@@ -207,6 +207,47 @@ class AnswerLayer(unittest.TestCase):
         got = self.a.solve("Which has more dependencies, alpha or beta?", [a, b])
         self.assertIn("alpha", got["answer"])
 
+    def test_out_of_domain_gets_a_fallback(self):
+        out = self.a.verify("Paris is the capital of France.", None, has_context=False)
+        self.assertEqual(out["status"], "fallback")
+
+    def test_unsupported_claim_is_rejected(self):
+        out = self.a.verify("2098 is maintained by Amelianov.", None, has_context=True,
+                            context="black 26.5.1: the uncompromising code formatter. License: MIT.")
+        self.assertEqual(out["status"], "fallback")
+
+    def test_grounded_text_always_wins(self):
+        truth = {"answer": "requests is released under the Apache-2.0 license.", "steps": [],
+                 "kind": "knowledge-base"}
+        out = self.a.verify("requests-post is released under the Apache-2.0 license.", truth)
+        self.assertEqual(out["final"], truth["answer"])   # hallucinated name never reaches the user
+
+    def test_random_package_is_not_used_for_general_questions(self):
+        doc = {"name": "mailman", "summary": "mailing list manager", "license": "GPL",
+               "deps": [], "version": "3.0"}
+        self.assertIsNone(self.a.solve("What is the capital of France?", [doc]))
+        self.assertIsNotNone(self.a.solve("What is mailman?", [doc]))
+
+    def test_conversational_intents(self):
+        for q, expect in (("hi", "Hello"), ("who are you", "5,015,808"),
+                          ("what can you do", "Python packages"), ("thanks", "welcome"),
+                          ("How do I read a text file in Python?", "with open")):
+            got = self.a.solve(q, [])
+            self.assertIsNotNone(got, q)
+            self.assertIn(expect, got["answer"], q)
+
+    def test_degenerate_detection(self):
+        for bad in ("- `1.0.0.0.0.0.0.0.0.0", "the the the the the the the", "..;;..;;..;;", ""):
+            self.assertTrue(self.a.looks_degenerate(bad), bad)
+        for good in ("black is released under the MIT license.",
+                     "Yes, fastapi depends on pydantic."):
+            self.assertFalse(self.a.looks_degenerate(good), good)
+
+    def test_noise_is_replaced_by_a_fallback(self):
+        out = self.a.verify("1.0.0.0.0.0.0.0.0.0", None)
+        self.assertEqual(out["status"], "fallback")
+        self.assertIn("knowledge base", out["final"])
+
     def test_verification_statuses(self):
         truth = {"answer": "black is released under the MIT license.", "steps": [],
                  "kind": "knowledge-base"}
@@ -214,7 +255,8 @@ class AnswerLayer(unittest.TestCase):
                                        truth)["status"], "ok")
         self.assertEqual(self.a.verify("black uses the Apache license.", truth)["status"],
                          "corrected")
-        self.assertEqual(self.a.verify("anything", None)["status"], "unchecked")
+        self.assertEqual(self.a.verify("Beautiful Soup parses broken HTML documents.",
+                                       None)["status"], "unchecked")
 
     def test_numbers_must_match_exactly(self):
         truth = {"answer": "The latest version of x is 0.10.2.", "steps": [], "kind": "kb"}

@@ -270,8 +270,26 @@ part of the system that is allowed to be *certain*:
 
 | path | accuracy |
 |---|---|
-| raw model output | 36.2% |
-| **grounded + verified** | **86.2%** |
+| raw model output | 45.0% |
+| **grounded + verified** | **88.3%** |
+
+Three rules decide what you actually see:
+
+1. **When a deterministic answer exists, it is the answer.** The model only ever supplies phrasing
+   it demonstrably agrees with — that stopped "requests-post is released under the Apache-2.0
+   licence" from reaching the user with a green *verified* badge on it.
+2. **A claim with no evidence behind it is refused.** If there is no ground truth and either no
+   retrieved context or an answer whose content words do not appear in that context, the reply
+   becomes an honest "I do not know that one" instead of an invention like
+   *"2098 is maintained by Amelianov."*
+3. **Package records are only used for package questions.** "What is the capital of France?" used
+   to be answered from whatever PyPI record ranked highest (mailman, as it happens); a relevance
+   guard now requires the package to be named in the question or the question to be about
+   packaging at all.
+
+Conversational intents (greetings, "who are you", "what can you do", thanks) and thirteen common
+Python how-tos are answered directly too, so the assistant responds sensibly to the things people
+type first rather than emitting noise from a 5M-parameter base model.
 
 Bugs this found and fixed along the way: "which Python version does X need" was being answered by
 the *release version* branch; "does X depend on Y" resolved the subject package by BM25 rank

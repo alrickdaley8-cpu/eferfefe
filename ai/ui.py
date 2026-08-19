@@ -310,6 +310,7 @@ async function send(){
              <span class="p">${(a.p*100).toFixed(0)}%</span></div>`).join("")+`</div>`;
       }else if(ev.type==="done"){
         const badge={ok:['verified','#2dd4bf'],corrected:['corrected from knowledge base','#fbbf24'],
+                     fallback:['model output rejected as noise','#f87171'],
                      unchecked:['unverified','#8b98ad']}[ev.verification]||["","#8b98ad"];
         body.innerHTML=esc(ev.answer||"(empty answer)")+(badge[0]?
           `<div class="vbadge" style="color:${badge[1]};border-color:${badge[1]}44">${badge[0]}</div>`:"");

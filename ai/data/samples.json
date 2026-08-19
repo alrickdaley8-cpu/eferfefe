@@ -1,38 +1,56 @@
 [
  {
+  "q": "What can you do?",
+  "reasoning": "listing what is actually inside the knowledge base.",
+  "a": "I can answer questions about Python packages \u2014 what a package does, its licence, version, dependencies, author, homepage, install and import commands, and comparisons between two packages. I can also do arithmetic, counting and string questions, and answer common Python how-tos. Ask me something like \"what license does black use?\" or \"does fastapi depend on pydantic?\" or \"what is 3471 + 2856?\".",
+  "context": "pyvers 0.2.3: A Python library for managing multiple versions of dependencies \ud83d\udc26 pyvers A Python library for dynamic dispatch based on module versions and backends. What can you do with pyvers? License: MIT. Requires Pyth",
+  "verification": "corrected",
+  "checkpoint": "sft.pt",
+  "step": 1248
+ },
+ {
   "q": "What license does black use?",
   "reasoning": "the context is about black.\nit says: License: MIT.",
   "a": "black is released under the MIT license.",
   "context": "black 26.5.1: The uncompromising code formatter. The Uncompromising Code Formatter \u201cAny color you like.\u201d Black is the uncompromising Python code formatter. By using it, you agree to cede control over minutiae of hand-for",
-  "verification": "corrected",
-  "checkpoint": "best.pt",
-  "step": 250
+  "verification": "ok",
+  "checkpoint": "sft.pt",
+  "step": 1248
  },
  {
   "q": "Does fastapi depend on pydantic?",
-  "reasoning": "dependencies listed: annotated-doc, email-validator, fastapi-cli, fastar, httpx, itsdangerous, jinja2, pydantic.\nlooking for pydantic: found.",
+  "reasoning": "dependencies listed: superlit, coverage, pydantic, pydantic, typing-extensions.\nlooking for pydantic: it is in the list.",
   "a": "Yes, fastapi depends on pydantic.",
   "context": "(1) fastapi 0.141.1: FastAPI framework, high performance, easy to learn, fast to code, ready for production FastAPI framework, high performance, easy to learn, fast to code, ready for production Documentation : [https://",
-  "verification": "corrected",
-  "checkpoint": "best.pt",
-  "step": 250
+  "verification": "ok",
+  "checkpoint": "sft.pt",
+  "step": 1248
  },
  {
   "q": "What is 3471 + 2856?",
-  "reasoning": "3471 + 2856: adding column by column.\nthe total is 6327.",
+  "reasoning": "units: 1 + 6 = 8, write 8\ntens: 3 + 7 = 10, write 0, carry 1\nhundreds: 0 + 8 + carry 1 = 10, write 0, carry 1\nthousands: 3 + 8 + carry 1 = 12, write 2, carry 1\nfinal carry 1\nreading the digits back: 111",
   "a": "3471 + 2856 = 6327",
   "context": "",
   "verification": "corrected",
-  "checkpoint": "best.pt",
-  "step": 250
+  "checkpoint": "sft.pt",
+  "step": 1248
+ },
+ {
+  "q": "How do I read a text file in Python?",
+  "reasoning": "this is a general Python question, answered from the built-in how-tos.",
+  "a": "Use a context manager:\n\nwith open(\"file.txt\", encoding=\"utf-8\") as f:\n    text = f.read()\n\nThe file is closed automatically when the block ends.",
+  "context": "tensorflow-io 0.37.1: TensorFlow IO TensorFlow I/O TensorFlow I/O is a collection of file systems and file formats that are not available in TensorFlow's built-in support. A full list of supported file systems and file f",
+  "verification": "corrected",
+  "checkpoint": "sft.pt",
+  "step": 1248
  },
  {
   "q": "Who won the 2038 World Cup?",
   "reasoning": "",
-  "a": "- `1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.",
+  "a": "I do not know that one. I am a 5M parameter model that answers from a knowledge base of 11,922 Python packages plus a calculator \u2014 try asking about a package (\"what license does black use?\"), a comparison (\"does fastapi depend on pydantic?\"), or some arithmetic.",
   "context": "repoze.who 3.1.0: repoze.who is an identification and authentication framework for WSGI. repoze.who .. image:: https://travis-ci.org/repoze/repoze.who.png?branch=master :target: https://travis-ci.org/repoze/repoze.who ..",
-  "verification": "unchecked",
-  "checkpoint": "best.pt",
-  "step": 250
+  "verification": "fallback",
+  "checkpoint": "sft.pt",
+  "step": 1248
  }
 ]

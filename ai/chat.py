@@ -269,7 +269,7 @@ class Assistant:
         if not text and reasoning:
             # the model never closed its <think> block: fall back to its last line
             text = reasoning.strip().splitlines()[-1]
-        checked = verify(text, truth)
+        checked = verify(text, truth, has_context=ctx is not None, context=ctx)
         if truth and checked["status"] == "corrected":
             reasoning = reasoning or "\n".join(truth["steps"])
             yield {"type": "thought", "kind": "correction",
@@ -330,8 +330,13 @@ def main() -> None:
                     continue
                 print(ev["text"], end="", flush=True)
             elif ev["type"] == "done":
-                s = ev["stats"]
-                print(f"\n  ({s['generated_tokens']} tokens, {s['tok_per_s']} tok/s)\n")
+                st = ev["stats"]
+                if ev["answer"].strip() != ev.get("model_answer", "").strip():
+                    label = ("corrected from the knowledge base"
+                             if ev["verification"] == "corrected" else "fallback reply")
+                    print(f"\n\n[{label}]\n{ev['answer']}")
+                print(f"\n  ({st['generated_tokens']} tokens, {st['tok_per_s']} tok/s, "
+                      f"{ev['verification']})\n")
 
     if args.question:
         ask(" ".join(args.question))

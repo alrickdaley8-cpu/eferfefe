@@ -1,7 +1,7 @@
 {
-  "source": "best.pt",
-  "stage": "pretrain",
-  "step": 250,
-  "tokens_seen": 2048000,
-  "published_at": "2026-08-19T18:53:28Z"
+  "source": "sft.pt",
+  "stage": "sft",
+  "step": 1248,
+  "tokens_seen": 10223616,
+  "published_at": "2026-08-19T19:45:41Z"
 }

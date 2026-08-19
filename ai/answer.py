@@ -19,6 +19,98 @@ from typing import Any
 Doc = dict[str, Any]
 
 # --------------------------------------------------------------------------------------
+# conversational intents and Python how-tos
+#
+# These are the questions a person actually types first ("hi", "what can you do", "how do I read
+# a file"). They have nothing to do with the knowledge base, and a 5M model answers them with
+# noise, so they get real answers here.
+# --------------------------------------------------------------------------------------
+IDENTITY = ("I am tiny-lm: a 5,015,808 parameter transformer trained from scratch on 100M tokens "
+            "of PyPI source text, running on CPU. I answer from a knowledge base of 11,922 Python "
+            "packages, plus a calculator for arithmetic.")
+CAPABILITIES = (
+    "I can answer questions about Python packages — what a package does, its licence, version, "
+    "dependencies, author, homepage, install and import commands, and comparisons between two "
+    "packages. I can also do arithmetic, counting and string questions, and answer common Python "
+    "how-tos. Ask me something like \"what license does black use?\" or \"does fastapi depend on "
+    "pydantic?\" or \"what is 3471 + 2856?\".")
+
+INTENTS: list[tuple[str, str, list[str]]] = [
+    (r"^\s*(hi|hey|hello|yo|good (morning|afternoon|evening))\b",
+     "Hello. Ask me about a Python package, or give me some arithmetic to do.",
+     ["a greeting, so no lookup is needed."]),
+    (r"\b(who|what) are you\b|\byour name\b|\bwhat model are you\b|\babout yourself\b",
+     IDENTITY, ["the question is about me rather than a package."]),
+    (r"\bwhat can you do\b|\bhelp\b|\bwhat do you know\b|\bhow do you work\b|"
+     r"\bwhat (kind of )?questions\b",
+     CAPABILITIES, ["listing what is actually inside the knowledge base."]),
+    (r"\bhow (big|large|many parameters)\b|\bhow were you trained\b|\btraining data\b",
+     "I have 5,015,808 parameters (4 layers, d_model 256, 8 heads, 8,192-token vocabulary, "
+     "512-token context) and was pretrained on 100,000,000 tokens of text collected from PyPI "
+     "source releases, then instruction tuned on 288k question/answer and reasoning examples.",
+     ["reporting my own configuration."]),
+    (r"\b(thanks|thank you|cheers|ta)\b", "You are welcome.", ["a thank-you needs no lookup."]),
+    (r"\b(bye|goodbye|see you)\b", "Goodbye.", ["a farewell needs no lookup."]),
+]
+
+HOWTOS: list[tuple[str, str]] = [
+    (r"read (a )?(text )?file",
+     "Use a context manager:\n\nwith open(\"file.txt\", encoding=\"utf-8\") as f:\n"
+     "    text = f.read()\n\nThe file is closed automatically when the block ends."),
+    (r"write (to )?(a )?file|save .* to (a )?file",
+     "Open it in write mode:\n\nwith open(\"out.txt\", \"w\", encoding=\"utf-8\") as f:\n"
+     "    f.write(text)"),
+    (r"(read|parse|load).*json|json.*(file|parse)",
+     "Use the json module:\n\nimport json\n\nwith open(\"data.json\") as f:\n"
+     "    data = json.load(f)\n\nUse json.dump(data, f, indent=2) to write it back."),
+    (r"virtual ?env|venv",
+     "Create one with python -m venv .venv, then activate it: source .venv/bin/activate on Linux "
+     "or macOS, .venv\\Scripts\\activate on Windows."),
+    (r"install .*(package|library|module|dependenc)|use pip",
+     "Run pip install <package>. Add --upgrade to update it, or pip install -r requirements.txt "
+     "to install everything a project needs."),
+    (r"list comprehension",
+     "A compact way to build a list: squares = [x * x for x in range(10)]. Add a condition with "
+     "if: evens = [x for x in nums if x % 2 == 0]."),
+    (r"(handle|catch).*(exception|error)|try.*except",
+     "Wrap the risky code:\n\ntry:\n    value = int(text)\nexcept ValueError as exc:\n"
+     "    print(\"bad number:\", exc)"),
+    (r"http request|call an api|fetch a url|download a (page|url)",
+     "With requests:\n\nimport requests\n\nr = requests.get(\"https://example.com\", timeout=10)"
+     "\nprint(r.status_code, r.text)"),
+    (r"sort .*(list|dict)",
+     "Use the key argument: items.sort(key=lambda d: d[\"name\"]), or "
+     "sorted(items, key=..., reverse=True) to get a new list."),
+    (r"difference between .*(list|tuple)",
+     "A list is mutable and written with square brackets; a tuple is immutable, written with "
+     "parentheses, and can be used as a dictionary key."),
+    (r"run tests|use pytest",
+     "Run pytest from the project root. It collects files named test_*.py and functions named "
+     "test_*. pytest -k name runs a subset, pytest -q keeps the output short."),
+    (r"__init__\.py",
+     "It marks a directory as a package and runs on first import, which is where a package "
+     "usually exposes its public API."),
+    (r"loop over .*(dict|dictionary)",
+     "Iterate over items():\n\nfor key, value in d.items():\n    print(key, value)"),
+]
+
+
+def conversational(q: str) -> dict | None:
+    ql = q.lower().strip()
+    for pattern, reply, steps in INTENTS:
+        if re.search(pattern, ql):
+            return {"answer": reply, "steps": steps, "kind": "assistant"}
+    if re.search(r"\bhow (do|can) i\b|\bhow to\b|\bwhat is a\b|\bwhat does\b", ql) \
+            or "python" in ql:
+        for pattern, reply in HOWTOS:
+            if re.search(pattern, ql):
+                return {"answer": reply, "steps": ["this is a general Python question, "
+                                                   "answered from the built-in how-tos."],
+                        "kind": "python-howto"}
+    return None
+
+
+# --------------------------------------------------------------------------------------
 # calculator
 # --------------------------------------------------------------------------------------
 NUM = r"(-?\d[\d,]*)"
@@ -125,8 +217,21 @@ def _subject(q: str, docs: list[Doc]) -> Doc:
     return best
 
 
+PACKAGEY = re.compile(r"\b(package|library|module|pypi|pip|dependenc|import|install|version|"
+                      r"licen[cs]e|maintainer|author|homepage)\b", re.I)
+RECOMMEND = re.compile(r"which package|what should i use|recommend|what can i use", re.I)
+
+
+def _about_a_package(q: str, docs: list[Doc]) -> bool:
+    """Guard against answering "what is the capital of France?" with a random PyPI record."""
+    ql = q.lower()
+    if any(d["name"].lower() in ql for d in docs):
+        return True
+    return bool(PACKAGEY.search(ql) or RECOMMEND.search(ql))
+
+
 def package_answer(q: str, docs: list[Doc]) -> dict | None:
-    if not docs:
+    if not docs or not _about_a_package(q, docs):
         return None
     ql = q.lower()
     m_dep = re.search(r"does ([a-z0-9_.\-]+) depend on ([a-z0-9_.\-]+)", ql)
@@ -227,7 +332,34 @@ def package_answer(q: str, docs: list[Doc]) -> dict | None:
 
 def solve(question: str, docs: list[Doc]) -> dict | None:
     """Ground-truth answer for a question, or None when nothing can be established."""
-    return calculator(question) or package_answer(question, docs)
+    return conversational(question) or calculator(question) or package_answer(question, docs)
+
+
+# --------------------------------------------------------------------------------------
+# quality gate for ungrounded output
+# --------------------------------------------------------------------------------------
+FALLBACK = ("I do not know that one. I am a 5M parameter model that answers from a knowledge base "
+            "of 11,922 Python packages plus a calculator — try asking about a package "
+            "(\"what license does black use?\"), a comparison (\"does fastapi depend on "
+            "pydantic?\"), or some arithmetic.")
+
+
+def looks_degenerate(text: str) -> bool:
+    """True when generation collapsed into repetition or symbol soup rather than an answer."""
+    t = text.strip()
+    if len(t) < 3:
+        return True
+    words = re.findall(r"[a-zA-Z]{2,}", t)
+    if len(words) < 3:
+        return True
+    if len(set(w.lower() for w in words)) / len(words) < 0.45:      # loops on a few words
+        return True
+    letters = sum(c.isalpha() or c.isspace() for c in t)
+    if letters / len(t) < 0.55:                                     # mostly punctuation/digits
+        return True
+    if re.search(r"(.{2,12}?)\1{3,}", t):                            # "0.0.0.0.0.0"
+        return True
+    return False
 
 
 # --------------------------------------------------------------------------------------
@@ -237,13 +369,40 @@ def _key_facts(text: str) -> set[str]:
     return set(re.findall(r"[A-Za-z][A-Za-z0-9_.\-]{2,}|\d+(?:\.\d+)*", text.lower()))
 
 
-def verify(model_answer: str, truth: dict | None) -> dict:
-    """Compare the model's answer with the deterministic one.
+REFUSAL_MARKERS = ("do not know", "don't know", "cannot answer", "can not answer",
+                   "does not mention", "not sure")
 
-    Returns {"status": ok | corrected | unchecked, "final": str, "truth": str|None}.
+
+def _supported_by(answer: str, context: str) -> bool:
+    """Do the answer's content words actually appear in the retrieved context?"""
+    ctx = _key_facts(context)
+    words = [w for w in _key_facts(answer) if len(w) > 3 or any(c.isdigit() for c in w)]
+    if not words:
+        return False
+    return len([w for w in words if w in ctx]) / len(words) >= 0.5
+
+
+def verify(model_answer: str, truth: dict | None, has_context: bool = True,
+           context: str | None = None) -> dict:
+    """Decide what the user actually sees.
+
+    Policy: when a deterministic answer exists it *is* the answer — the model only gets to phrase
+    things it demonstrably agrees with. Statuses: ok (model matched the truth), corrected (truth
+    replaced it), fallback (nothing to check against and the output cannot be trusted), unchecked.
     """
     if truth is None:
-        return {"status": "unchecked", "final": model_answer.strip(), "truth": None}
+        answer = model_answer.strip()
+        if looks_degenerate(answer):
+            return {"status": "fallback", "final": FALLBACK, "truth": None}
+        refusing = any(m in answer.lower() for m in REFUSAL_MARKERS)
+        if not refusing:
+            if not has_context:
+                # no retrieved evidence and no calculator: anything factual here is invented
+                return {"status": "fallback", "final": FALLBACK, "truth": None}
+            if context and not _supported_by(answer, context):
+                # there was a context, but the answer is not actually grounded in it
+                return {"status": "fallback", "final": FALLBACK, "truth": None}
+        return {"status": "unchecked", "final": answer, "truth": None}
     t = truth["answer"]
     if not model_answer.strip():
         return {"status": "corrected", "final": t, "truth": t}
@@ -257,6 +416,6 @@ def verify(model_answer: str, truth: dict | None) -> dict:
     values = {x for x in tf if len(x) > 3}
     hit = len(values & mf) / max(1, len(values))
     negated = ("no," in model_answer.lower()) != ("no," in t.lower())
-    if hit >= 0.75 and not negated:
-        return {"status": "ok", "final": model_answer.strip(), "truth": t}
-    return {"status": "corrected", "final": t, "truth": t}
+    # the grounded text is always what gets shown; "ok" just records that the model agreed
+    return {"status": "ok" if (hit >= 0.75 and not negated) else "corrected", "final": t,
+            "truth": t}
