@@ -35,6 +35,13 @@ header{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:14px;align-items:center;
 .who{font-size:11.5px;color:var(--dim);letter-spacing:.4px;text-transform:uppercase;margin-bottom:3px}
 .body{white-space:pre-wrap;word-wrap:break-word}
 .body.mono{font-size:13.5px}
+.reason{background:#0f1620;border:1px solid var(--line);border-left:2px solid var(--accent2);
+  border-radius:10px;padding:9px 12px;margin:0 0 9px;color:#a8b6cc;font-size:13px;white-space:pre-wrap}
+.reason .lbl{color:var(--accent2);font-size:11px;letter-spacing:.6px;text-transform:uppercase;
+  display:flex;gap:7px;align-items:center;margin-bottom:4px}
+.spin{width:9px;height:9px;border:2px solid var(--accent2);border-right-color:transparent;
+  border-radius:50%;display:inline-block;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 .cursor{display:inline-block;width:7px;height:15px;background:var(--accent);vertical-align:-2px;
   animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:0}}
@@ -128,6 +135,8 @@ details summary{cursor:pointer;color:var(--dim);font-size:12px}
     <h2>Decoding</h2>
     <div class="ctrl"><span>Grounding (RAG)</span><div class="switch on" id="rag"></div></div>
     <div class="ctrl"><span>Chat template</span><div class="switch on" id="tpl"></div></div>
+    <div class="ctrl"><span>Show reasoning inline</span><div class="switch on" id="showthink"></div></div>
+    <div class="ctrl"><span>Careful mode (low temp)</span><div class="switch" id="careful"></div></div>
     <div class="ctrl"><span>Temperature</span><input type="range" id="temp" min="10" max="140" value="70"></div>
     <div class="ctrl"><span class="mono" id="tempV">0.70</span><span class="mono" id="topkV">top-k 40</span></div>
     <div class="ctrl"><span>Top-k</span><input type="range" id="topk" min="1" max="200" value="40"></div>
@@ -145,14 +154,16 @@ details summary{cursor:pointer;color:var(--dim);font-size:12px}
 
 <script>
 const $=id=>document.getElementById(id);
-const EXAMPLES=["What is beautifulsoup4?","How do I install black?","What license does requests use?",
- "Which package should I use for progress bars?","What are the dependencies of fastapi?",
- "How do I read a text file in Python?","What is 128 + 46?","Who won the 2038 World Cup?"];
-let busy=false, opts={rag:true,tpl:true};
+const EXAMPLES=["What is beautifulsoup4?","Does fastapi depend on pydantic?",
+ "Do requests and black use the same license?","What is 3471 + 2856?",
+ "Which has more dependencies, fastapi or flask?","How many times does the letter p appear in package?",
+ "What comes next: 4, 11, 18, 25, 32?","Which package should I use for progress bars?",
+ "Who won the 2038 World Cup?"];
+let busy=false, opts={rag:true,tpl:true,showthink:true,careful:false};
 
 $("chips").innerHTML=EXAMPLES.map(e=>`<span class="chip">${esc(e)}</span>`).join("");
 $("chips").onclick=e=>{if(e.target.classList.contains("chip")){$("q").value=e.target.textContent;send();}};
-["rag","tpl"].forEach(k=>$(k).onclick=()=>{opts[k]=!opts[k];$(k).classList.toggle("on",opts[k]);});
+["rag","tpl","showthink","careful"].forEach(k=>$(k).onclick=()=>{opts[k]=!opts[k];$(k).classList.toggle("on",opts[k]);});
 $("temp").oninput=e=>$("tempV").textContent=(e.target.value/100).toFixed(2);
 $("topk").oninput=e=>$("topkV").textContent="top-k "+e.target.value;
 $("maxt").oninput=e=>$("maxtV").textContent=e.target.value+" tokens";
@@ -166,9 +177,12 @@ function esc(s){return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":
 function addMsg(who,cls){
   const d=document.createElement("div"); d.className="msg "+cls;
   d.innerHTML=`<div class="avatar">${cls==="you"?"you":"lm"}</div>
-    <div class="bubble"><div class="who">${who}</div><div class="body"></div></div>`;
+    <div class="bubble"><div class="who">${who}</div>
+      <div class="reason" style="display:none"><div class="lbl"><span class="spin"></span>reasoning</div>
+        <div class="rtext"></div></div>
+      <div class="body"></div></div>`;
   $("log").appendChild(d); $("log").scrollTop=$("log").scrollHeight;
-  return d.querySelector(".body");
+  return d;
 }
 function thought(kind,html,active){
   const d=document.createElement("div"); d.className="step"+(active?" active":"");
@@ -208,10 +222,13 @@ async function send(){
   if(busy) return;
   const text=$("q").value.trim(); if(!text) return;
   $("q").value=""; busy=true; $("go").disabled=true;
-  addMsg("you","you").textContent=text;
+  addMsg("you","you").querySelector(".body").textContent=text;
   clearThoughts();
-  const body=addMsg("tiny-lm","bot"); body.innerHTML='<span class="cursor"></span>';
-  let out="", live=null;
+  const msg=addMsg("tiny-lm","bot");
+  const body=msg.querySelector(".body"), rbox=msg.querySelector(".reason"),
+        rtext=msg.querySelector(".rtext");
+  body.innerHTML='<span class="cursor"></span>';
+  let out="", reasoning="", live=null;
 
   const res=await fetch("/chat/stream",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({message:text,model:$("model").value,use_context:opts.rag,
@@ -238,8 +255,13 @@ async function send(){
           thought(ev.kind,esc(ev.text));
         }
       }else if(ev.type==="token"){
-        out+=ev.text;
-        body.innerHTML=esc(out)+'<span class="cursor"></span>';
+        if(ev.channel==="think"){
+          reasoning+=ev.text;
+          if(opts.showthink){rbox.style.display="";rtext.textContent=reasoning;}
+        }else{
+          out+=ev.text;
+          body.innerHTML=esc(out)+'<span class="cursor"></span>';
+        }
         $("log").scrollTop=$("log").scrollHeight;
         if(!live) live=thought("decoding","",true);
         live.querySelector(".v").innerHTML=
@@ -250,6 +272,12 @@ async function send(){
              <span class="p">${(a.p*100).toFixed(0)}%</span></div>`).join("")+`</div>`;
       }else if(ev.type==="done"){
         body.innerHTML=esc(ev.answer||"(empty answer)");
+        const sp=rbox.querySelector(".spin"); if(sp) sp.remove();
+        if(ev.reasoning){
+          rbox.style.display=opts.showthink?"":"none";
+          rtext.textContent=ev.reasoning;
+          thought("reasoning steps",esc(ev.reasoning));
+        }
         if(live){live.classList.remove("active");}
         const s=ev.stats;
         thought("done",`${s.generated_tokens} tokens · ${s.tok_per_s} tok/s · ${s.total_s}s total

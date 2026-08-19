@@ -59,22 +59,28 @@ def format_prompt(question: str) -> str:
     return f"{Q_HEAD}{question}{A_HEAD}"
 
 
-def pack(tokenizer: Tokenizer, path: str, tok_bin: str, mask_bin: str, max_len: int = 480) -> None:
-    """Tokenize sft.jsonl into a flat uint16 stream + uint8 answer mask."""
+def pack(tokenizer: Tokenizer, paths: list[str], tok_bin: str, mask_bin: str,
+         max_len: int = 480) -> None:
+    """Tokenize the instruction files into a flat uint16 stream + uint8 answer mask."""
     eot = tokenizer.token_to_id("<|endoftext|>")
     toks, masks = [], []
     B = 2000
     n_done = 0
 
     def chunks():
-        """Stream the jsonl in batches — never hold the whole 65 MB file in memory."""
+        """Stream the jsonl files in batches — never hold them in memory at once."""
         buf = []
-        with open(path) as fh:
-            for line in fh:
-                buf.append(json.loads(line))
-                if len(buf) >= B:
-                    yield buf
-                    buf = []
+        for path in paths:
+            if not os.path.exists(path):
+                print(f"[sft] (skipping missing {os.path.basename(path)})", flush=True)
+                continue
+            print(f"[sft] packing {os.path.basename(path)}", flush=True)
+            with open(path) as fh:
+                for line in fh:
+                    buf.append(json.loads(line))
+                    if len(buf) >= B:
+                        yield buf
+                        buf = []
         if buf:
             yield buf
 
@@ -133,8 +139,13 @@ def main() -> None:
 
     tok_bin = os.path.join(QA_DIR, "sft_tokens.bin")
     mask_bin = os.path.join(QA_DIR, "sft_mask.bin")
-    if args.repack or not os.path.exists(tok_bin):
-        pack(tokenizer, os.path.join(QA_DIR, "sft.jsonl"), tok_bin, mask_bin)
+    sources = [os.path.join(QA_DIR, f) for f in ("sft.jsonl", "reasoning.jsonl")]
+    newest = max((os.path.getmtime(p) for p in sources if os.path.exists(p)), default=0)
+    stale = os.path.exists(tok_bin) and os.path.getmtime(tok_bin) < newest
+    if args.repack or stale or not os.path.exists(tok_bin):
+        if stale:
+            print("[sft] instruction data changed — repacking", flush=True)
+        pack(tokenizer, sources, tok_bin, mask_bin)
 
     tokens = np.memmap(tok_bin, dtype=np.uint16, mode="r")
     mask = np.memmap(mask_bin, dtype=np.uint8, mode="r")
@@ -142,7 +153,7 @@ def main() -> None:
     tr_tok, tr_mask = tokens[:-n_val], mask[:-n_val]
     va_tok, va_mask = tokens[-n_val:], mask[-n_val:]
 
-    resume_path = os.path.join(CKPT_DIR, "sft_ckpt.pt")
+    resume_path = args.out[:-3] + "_ckpt.pt"   # optimiser state for this particular run
     resume = torch.load(resume_path, map_location="cpu", weights_only=False) \
         if os.path.exists(resume_path) else None
     ck = resume or torch.load(args.base, map_location="cpu", weights_only=False)

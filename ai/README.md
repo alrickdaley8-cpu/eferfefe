@@ -87,6 +87,7 @@ instruction tuning + retrieval grounding:
 
 | file | what it does |
 |---|---|
+| `ai/build_reasoning.py` | **142,500 chain-of-thought examples (~28M tokens)**: worked arithmetic, string/counting, grounded field lookups and two-package multi-hop comparisons |
 | `ai/build_qa.py` | pulls metadata for 11,922 PyPI packages → `qa/knowledge.jsonl`, and generates **145,864 QA examples** (~18M tokens) → `qa/sft.jsonl` |
 | `ai/finetune.py` | SFT on those examples, loss on answer tokens only → `checkpoints/sft.pt` |
 | `ai/retrieve.py` | BM25-lite keyword search over the 11,922-package knowledge base (stdlib only) |
@@ -127,6 +128,49 @@ question. What it can realistically do after the full run: reply in the right fo
 for a described task, handle small arithmetic/string tasks, and refuse when the context is empty.
 Anything outside the knowledge base is a coin flip at best, which is exactly why the refusal
 behaviour is trained in.
+
+## Stage 3 — reasoning
+
+Four layers of 256 dimensions cannot do multi-step reasoning *inside* the activations. The fix
+that works at this scale is to make the model externalise its steps into tokens and then read its
+own steps back — so every reasoning example is trained in this shape:
+
+```
+### Answer:
+<think>
+dependencies listed: pydantic, starlette, typing-extensions.
+looking for pydantic: it is in the list.
+</think>
+Yes, fastapi depends on pydantic.
+```
+
+`ai/build_reasoning.py` generates 142,500 such examples from the knowledge base (no network):
+
+* **arithmetic with carries** — column-by-column addition, split multiplication, subtraction,
+  percentages, averages, sequence continuation, magnitude comparison
+* **string/counting** — spell the word out, mark the positions, then count
+* **grounded lookups** — "the context is about black. it says: License: MIT." → answer
+  (this alone fixed the old failure where the model answered with the *wrong package name*)
+* **multi-hop over two contexts** — same/different licence, which has more dependencies, shared
+  dependencies, higher version, newer Python requirement, pick-the-right-package
+* **checked refusals** — "scanning the context for download counts. no download figure is present."
+
+Supporting changes:
+
+* the retriever now builds a **numbered two-package context** (`(1) … (2) …`) when a question
+  names two packages, matching the multi-hop training format
+* **retrieval gating** — arithmetic and string questions skip retrieval entirely (a package blurb
+  was derailing them), and the BM25 confidence floor rose from 1.5 to 8.0
+* the streamer splits generation into a **reasoning channel and an answer channel** (partial
+  `<think>` tags are never leaked), so the UI shows the steps live in their own block and the
+  final answer in the bubble; `--think` does the same in the CLI
+* **careful mode** in the UI (temperature 0.15, top-k 5) for arithmetic and lookups
+* SFT budget raised to 25M tokens over the combined 56.9M-token instruction+reasoning pool
+
+Early evidence from a 13-minute preview fine-tune (2.9M SFT tokens on a partially pretrained base):
+grounded lookups are already correct — *"the context is about black. it says: License: MIT."* →
+*"black is released under the MIT license."* — and arithmetic produces the right column-by-column
+shape with wrong digits, which is what the full run is expected to fix.
 
 ## The web UI
 

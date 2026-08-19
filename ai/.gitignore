@@ -3,6 +3,7 @@ checkpoints/
 data/*.bin
 data/*.npy
 data/corpus/
+data/qa/reasoning.jsonl
 data/qa/sft.jsonl
 data/qa/sft_mask.bin
 data/qa/sft_tokens.bin
