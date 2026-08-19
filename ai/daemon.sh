@@ -37,11 +37,15 @@ EOF
 }
 
 serve_watchdog() {
-  # keep the chat UI alive too, but never fight an already-running server
+  # keep the chat UI alive too, but never fight a server somebody else already started
   while true; do
     if ! port_busy "$SERVE_PORT"; then
-      echo "[daemon] starting chat server on :$SERVE_PORT"
-      nice -n 10 "$PY" -m ai.serve --port "$SERVE_PORT" --threads 1 >>"$CKPT/serve.log" 2>&1 &
+      sleep 3                                   # double-check: avoids racing a restarting server
+      if ! port_busy "$SERVE_PORT"; then
+        echo "[daemon] starting chat server on :$SERVE_PORT"
+        nice -n 10 "$PY" -m ai.serve --port "$SERVE_PORT" --threads 1 >>"$CKPT/serve.log" 2>&1 &
+        sleep 120                               # give it room before probing again
+      fi
     fi
     sleep 60
   done

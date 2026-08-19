@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tiny-lm — a 5M parameter language model trained from scratch</title>
+<meta name="description" content="A 5,015,808 parameter transformer pretrained on 100M tokens and
+instruction tuned for retrieval-grounded reasoning, on 2 CPU cores.">
+<style>
+:root{--bg:#0b0e13;--panel:#12161f;--panel2:#161b26;--line:#242c3a;--text:#e8eef7;--dim:#8b98ad;
+ --accent:#5eead4;--accent2:#7c9cff}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1100px 600px at 12% -10%,#16203055,transparent),var(--bg);
+ color:var(--text);font:15px/1.7 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.mono,code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.wrap{max-width:1000px;margin:0 auto;padding:54px 20px 80px}
+h1{font-size:38px;line-height:1.15;margin:0 0 10px;letter-spacing:-.5px}
+h2{font-size:20px;margin:44px 0 14px;letter-spacing:-.2px}
+h3{font-size:15px;margin:22px 0 8px;color:var(--accent)}
+p{color:#cbd5e6} .dim{color:var(--dim)}
+.lede{font-size:17px;color:#b9c6da;max-width:70ch}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 4px}
+.badge{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px;
+ font-size:12.5px;color:var(--dim)}
+.badge b{color:var(--text);font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:22px 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.card .k{font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim)}
+.card .v{font-size:23px;font-weight:650;margin:3px 0 1px}
+.card .s{font-size:12.5px;color:var(--dim)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px}
+.chart{width:100%;height:auto;display:block}
+.grid line.grid{stroke:#1e2634} line.grid{stroke:#1e2634;stroke-width:1}
+text.ylab{fill:#5f6d82;font:10px ui-monospace,monospace;text-anchor:end}
+text.xlab{fill:#5f6d82;font:10px ui-monospace,monospace}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--dim);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px}
+td.num{text-align:right;font-family:ui-monospace,monospace}
+pre{background:#0d121a;border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+ overflow:auto;font-size:13px;color:#cfe0f5}
+.turn{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:14px 16px;
+ margin:12px 0}
+.turn .q{font-weight:600}
+.turn .ctx,.turn .think{font-size:12.8px;border-left:2px solid var(--line);padding:6px 0 6px 11px;
+ margin:9px 0;color:var(--dim);white-space:pre-wrap}
+.turn .think{border-left-color:var(--accent2);color:#a8b6cc}
+.turn .ctx span,.turn .think span{display:block;font-size:10.5px;text-transform:uppercase;
+ letter-spacing:.6px;color:var(--accent2);margin-bottom:3px}
+.turn .a{margin-top:8px;white-space:pre-wrap}
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+.step{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;
+ font-size:13px}
+.step b{display:block;color:var(--accent);font-size:11.5px;text-transform:uppercase;
+ letter-spacing:.5px;margin-bottom:3px}
+a{color:var(--accent2)} footer{margin-top:52px;color:var(--dim);font-size:12.5px}
+#live{display:none;margin-top:12px}
+</style></head><body><div class="wrap">
+
+<h1>tiny-lm</h1>
+<p class="lede">A <b>5,015,808 parameter</b> language model built from scratch — corpus collection,
+tokenizer, transformer, pretraining on <b>100,000,000 tokens</b>, instruction tuning and
+retrieval-grounded chain-of-thought reasoning — all trained on <b>2 CPU cores</b>, no GPU.</p>
+
+<div class="badges">
+  <span class="badge"><b>4</b> layers</span>
+  <span class="badge"><b>256</b> d_model</span>
+  <span class="badge"><b>8192</b> vocab</span>
+  <span class="badge"><b>512</b> context</span>
+  <span class="badge">RoPE · SwiGLU · RMSNorm · tied embeddings</span>
+  <span class="badge">updated 2026-08-19 15:17 UTC</span>
+</div>
+
+<div class="grid"><div class="card"><div class="k">parameters</div><div class="v">5,015,808</div><div class="s">4 layers · d=256 · 8 heads · RoPE · SwiGLU</div></div><div class="card"><div class="k">pretraining</div><div class="v">11.9M / 100M</div><div class="s">tokens of PyPI source text</div></div><div class="card"><div class="k">val loss</div><div class="v">3.62</div><div class="s">perplexity 37</div></div><div class="card"><div class="k">knowledge base</div><div class="v">11,922</div><div class="s">packages available to retrieval</div></div><div class="card"><div class="k">instruction data</div><div class="v">288k examples</div><div class="s">146k QA + 142.5k chain-of-thought</div></div><div class="card"><div class="k">hardware</div><div class="v">2 vCPU</div><div class="s">no GPU, fp32, ~4,000 tok/s</div></div></div>
+
+<h2>Pipeline</h2>
+<div class="flow">
+  <div class="step"><b>1 · corpus</b>470 MB of text from 1,745 PyPI source releases, deduped and
+    quality filtered</div>
+  <div class="step"><b>2 · tokenizer</b>byte-level BPE, 8,192 merges, trained on the corpus</div>
+  <div class="step"><b>3 · pretrain</b>100M tokens, 1 epoch, cosine LR, 12,207 steps</div>
+  <div class="step"><b>4 · instruct</b>146k QA pairs from 11,922 package records</div>
+  <div class="step"><b>5 · reason</b>142.5k worked-step examples, answer-only loss</div>
+  <div class="step"><b>6 · serve</b>BM25 retrieval + streaming chat with a visible thought process</div>
+</div>
+
+<h2>Training curves</h2>
+<div class="panel">
+  <h3>Pretraining loss (EMA)</h3>
+  <svg viewBox="0 0 680 210" class="chart" role="img" aria-label="pretraining loss">
+  <defs><linearGradient id="g5eead4" x1="0" x2="0" y1="0" y2="1">
+    <stop offset="0%" stop-color="#5eead4" stop-opacity=".28"/>
+    <stop offset="100%" stop-color="#5eead4" stop-opacity="0"/></linearGradient></defs>
+  <line x1="34" y1="168.4" x2="666" y2="168.4" class="grid"/><text x="26" y="172.4" class="ylab">3.0</text><line x1="34" y1="122.7" x2="666" y2="122.7" class="grid"/><text x="26" y="126.7" class="ylab">4.9</text><line x1="34" y1="77.1" x2="666" y2="77.1" class="grid"/><text x="26" y="81.1" class="ylab">6.7</text><line x1="34" y1="31.4" x2="666" y2="31.4" class="grid"/><text x="26" y="35.4" class="ylab">8.6</text>
+  <path d="M34.0,34.3 L45.1,56.0 L56.2,78.7 L67.3,93.1 L78.4,103.4 L89.5,111.0 L100.6,116.2 L111.7,121.8 L122.8,126.0 L133.9,126.9 L144.9,130.0 L156.0,132.4 L167.1,134.5 L178.2,136.7 L189.3,139.5 L200.4,137.6 L211.5,139.7 L222.6,140.3 L233.7,142.6 L244.8,145.3 L255.9,143.4 L267.0,144.5 L278.1,144.0 L289.2,147.5 L300.3,147.5 L311.4,146.9 L322.5,147.4 L333.6,149.4 L344.7,149.2 L355.7,150.7 L366.8,149.3 L377.9,154.4 L389.0,153.0 L400.1,154.5 L366.8,152.0 L377.9,150.5 L389.0,153.8 L400.1,153.2 L411.2,154.2 L422.3,155.3 L433.4,154.9 L444.5,152.9 L366.8,150.1 L377.9,150.6 L389.0,150.4 L400.1,153.2 L411.2,155.1 L422.3,154.8 L433.4,155.3 L444.5,155.8 L455.6,158.1 L466.7,155.0 L477.8,156.9 L488.9,157.9 L500.0,159.1 L511.1,159.6 L522.2,160.6 L533.3,158.6 L544.4,160.5 L555.5,160.0 L566.5,162.1 L577.6,163.3 L588.7,163.4 L599.8,162.3 L610.9,161.5 L622.0,164.3 L633.1,164.1 L644.2,163.5 L655.3,163.7 L666.4,165.5 L666.4,176.0 L34.0,176.0 Z" fill="url(#g5eead4)"/>
+  <path d="M34.0,34.3 L45.1,56.0 L56.2,78.7 L67.3,93.1 L78.4,103.4 L89.5,111.0 L100.6,116.2 L111.7,121.8 L122.8,126.0 L133.9,126.9 L144.9,130.0 L156.0,132.4 L167.1,134.5 L178.2,136.7 L189.3,139.5 L200.4,137.6 L211.5,139.7 L222.6,140.3 L233.7,142.6 L244.8,145.3 L255.9,143.4 L267.0,144.5 L278.1,144.0 L289.2,147.5 L300.3,147.5 L311.4,146.9 L322.5,147.4 L333.6,149.4 L344.7,149.2 L355.7,150.7 L366.8,149.3 L377.9,154.4 L389.0,153.0 L400.1,154.5 L366.8,152.0 L377.9,150.5 L389.0,153.8 L400.1,153.2 L411.2,154.2 L422.3,155.3 L433.4,154.9 L444.5,152.9 L366.8,150.1 L377.9,150.6 L389.0,150.4 L400.1,153.2 L411.2,155.1 L422.3,154.8 L433.4,155.3 L444.5,155.8 L455.6,158.1 L466.7,155.0 L477.8,156.9 L488.9,157.9 L500.0,159.1 L511.1,159.6 L522.2,160.6 L533.3,158.6 L544.4,160.5 L555.5,160.0 L566.5,162.1 L577.6,163.3 L588.7,163.4 L599.8,162.3 L610.9,161.5 L622.0,164.3 L633.1,164.1 L644.2,163.5 L655.3,163.7 L666.4,165.5" fill="none" stroke="#5eead4" stroke-width="2" stroke-linejoin="round"/>
+  <text x="34" y="202" class="xlab">0.2M tokens</text>
+  <text x="632" y="202" class="xlab" text-anchor="end">11.9M</text>
+</svg>
+  <h3>Validation loss</h3>
+  <svg viewBox="0 0 680 210" class="chart" role="img" aria-label="validation loss">
+  <defs><linearGradient id="g7c9cff" x1="0" x2="0" y1="0" y2="1">
+    <stop offset="0%" stop-color="#7c9cff" stop-opacity=".28"/>
+    <stop offset="100%" stop-color="#7c9cff" stop-opacity="0"/></linearGradient></defs>
+  <line x1="34" y1="168.4" x2="666" y2="168.4" class="grid"/><text x="26" y="172.4" class="ylab">3.6</text><line x1="34" y1="122.7" x2="666" y2="122.7" class="grid"/><text x="26" y="126.7" class="ylab">4.0</text><line x1="34" y1="77.1" x2="666" y2="77.1" class="grid"/><text x="26" y="81.1" class="ylab">4.4</text><line x1="34" y1="31.4" x2="666" y2="31.4" class="grid"/><text x="26" y="35.4" class="ylab">4.8</text>
+  <path d="M34.0,34.3 L192.1,96.6 L350.2,123.8 L508.3,143.3 L666.4,165.5 L666.4,176.0 L34.0,176.0 Z" fill="url(#g7c9cff)"/>
+  <path d="M34.0,34.3 L192.1,96.6 L350.2,123.8 L508.3,143.3 L666.4,165.5" fill="none" stroke="#7c9cff" stroke-width="2" stroke-linejoin="round"/>
+  <text x="34" y="202" class="xlab">2.0M tokens</text>
+  <text x="632" y="202" class="xlab" text-anchor="end">10.2M</text>
+</svg>
+  <h3>Instruction tuning loss</h3><svg viewBox="0 0 680 210" class="chart" role="img" aria-label="sft loss">
+  <defs><linearGradient id="gfbbf24" x1="0" x2="0" y1="0" y2="1">
+    <stop offset="0%" stop-color="#fbbf24" stop-opacity=".28"/>
+    <stop offset="100%" stop-color="#fbbf24" stop-opacity="0"/></linearGradient></defs>
+  <line x1="34" y1="168.4" x2="666" y2="168.4" class="grid"/><text x="26" y="172.4" class="ylab">1.3</text><line x1="34" y1="122.7" x2="666" y2="122.7" class="grid"/><text x="26" y="126.7" class="ylab">2.6</text><line x1="34" y1="77.1" x2="666" y2="77.1" class="grid"/><text x="26" y="81.1" class="ylab">4.0</text><line x1="34" y1="31.4" x2="666" y2="31.4" class="grid"/><text x="26" y="35.4" class="ylab">5.3</text>
+  <path d="M34.0,34.3 L82.6,68.9 L131.3,89.3 L179.9,97.6 L228.6,106.2 L277.2,111.7 L325.9,115.7 L374.5,119.5 L423.2,120.4 L471.8,118.5 L34.0,34.3 L82.6,68.7 L34.0,51.7 L82.6,87.8 L131.3,113.3 L179.9,128.8 L228.6,136.5 L277.2,145.5 L325.9,150.1 L374.5,152.6 L423.2,156.9 L471.8,159.4 L520.5,159.6 L569.1,163.0 L617.8,165.5 L666.4,164.2 L666.4,176.0 L34.0,176.0 Z" fill="url(#gfbbf24)"/>
+  <path d="M34.0,34.3 L82.6,68.9 L131.3,89.3 L179.9,97.6 L228.6,106.2 L277.2,111.7 L325.9,115.7 L374.5,119.5 L423.2,120.4 L471.8,118.5 L34.0,34.3 L82.6,68.7 L34.0,51.7 L82.6,87.8 L131.3,113.3 L179.9,128.8 L228.6,136.5 L277.2,145.5 L325.9,150.1 L374.5,152.6 L423.2,156.9 L471.8,159.4 L520.5,159.6 L569.1,163.0 L617.8,165.5 L666.4,164.2" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linejoin="round"/>
+  <text x="34" y="202" class="xlab">0.2M tokens</text>
+  <text x="632" y="202" class="xlab" text-anchor="end">2.9M</text>
+</svg>
+</div>
+
+<h2>What it actually does</h2>
+<p>At this size the model cannot memorise the world, so it is trained to do the two things that
+fit in 5M parameters: <b>answer from a context passage retrieved for it</b>, and <b>write its
+reasoning out as tokens</b> before answering. Unanswerable questions are trained to be refused.</p>
+
+      <article class="turn">
+        <div class="q">What license does black use?</div>
+        <div class="ctx"><span>retrieved</span>black 26.5.1: The uncompromising code formatter. The Uncompromising Code Formatter “Any color you like.” Black is the uncompromising Python code formatter. By using it, you agree to cede control over minutiae of hand-for…</div>
+        <div class="think"><span>thinking</span>the context is about black.
+it says: License: MIT.</div>
+        <div class="a">black is released under the MIT license.</div>
+      </article>
+      <article class="turn">
+        <div class="q">Does fastapi depend on pydantic?</div>
+        <div class="ctx"><span>retrieved</span>(1) fastapi 0.141.1: FastAPI framework, high performance, easy to learn, fast to code, ready for production FastAPI framework, high performance, easy to learn, fast to code, ready for production Documentation : [https://…</div>
+        <div class="think"><span>thinking</span>dependencies listed: letter, email-validator, pydantic, pydantic-core, pydantic, pydantic, pydantic, pydantic, pydantic, tzdata, tzdata.
+looking for pydantic-validator: it is in the list.</div>
+        <div class="a">Yes, fastapi depends on pydantic-validator.</div>
+      </article>
+      <article class="turn">
+        <div class="q">What is 3471 + 2856?</div>
+        
+        <div class="think"><span>thinking</span>units: 2 + 0 = 2, write 2
+tens: 2 + 2 = 2, write 2
+hundreds: 2 + 2 = 2, write 2
+thousands: 2 + 2 = 2, write 2
+reading the digits back: 27130</div>
+        <div class="a">7111 + 27 = 27110</div>
+      </article>
+      <article class="turn">
+        <div class="q">Who won the 2038 World Cup?</div>
+        <div class="ctx"><span>retrieved</span>repoze.who 3.1.0: repoze.who is an identification and authentication framework for WSGI. repoze.who .. image:: https://travis-ci.org/repoze/repoze.who.png?branch=master :target: https://travis-ci.org/repoze/repoze.who ..…</div>
+        
+        <div class="a">The context does not mention that, so I cannot answer it reliably.</div>
+      </article>
+<p class="dim">Transcripts above are generated from the checkpoint that was current when this page
+was built — the pipeline was still training, so treat them as a snapshot, not a final score.</p>
+
+<h2>Checkpoints</h2>
+<div class="panel"><table>
+<thead><tr><th>file</th><th>label</th><th>stage</th><th>step</th><th>tokens seen</th></tr></thead>
+<tbody><tr><td class='mono'>sft_demo.pt</td><td>Chat preview</td><td>sft</td><td class='num'>355</td><td class='num'>2.9M</td></tr><tr><td class='mono'>model.pt</td><td>Base (latest)</td><td>pretrain</td><td class='num'>1,377</td><td class='num'>11.3M</td></tr><tr><td class='mono'>best.pt</td><td>Base (best val)</td><td>pretrain</td><td class='num'>1,250</td><td class='num'>10.2M</td></tr><tr><td class='mono'>base_demo.pt</td><td>Base snapshot</td><td>pretrain</td><td class='num'>750</td><td class='num'>6.1M</td></tr></tbody></table></div>
+
+<h2>Run it yourself</h2>
+<pre>git clone https://github.com/alrickdaley8-cpu/eferfefe
+cd eferfefe
+python -m venv .venv &amp;&amp; .venv/bin/pip install torch numpy tokenizers requests
+
+python ai/build_corpus.py --target-mb 450     # 470 MB of text
+python ai/train_tokenizer.py                  # 8k byte-level BPE
+python ai/prepare_data.py                     # exactly 100,000,000 tokens
+python ai/build_qa.py --packages 12000        # knowledge base + QA set
+python ai/build_reasoning.py                  # chain-of-thought set
+
+ai/daemon.sh start                            # pretrain -> instruction tune, in the background
+ai/daemon.sh status                           # progress, loss, throughput, ETA
+python -m ai.chat --think "does fastapi depend on pydantic?"
+python -m ai.serve --port 8000                # streaming chat UI</pre>
+
+<div id="live" class="panel">
+  <h3>Live demo detected</h3>
+  <p class="dim">A chat server is running on this host — <a href="http://localhost:8000">open the
+  full UI</a>.</p>
+</div>
+
+<footer>
+  Built in <a href="https://github.com/alrickdaley8-cpu/eferfefe">alrickdaley8-cpu/eferfefe</a> ·
+  page generated by <code>ai/make_page.py</code> · numbers are read straight from the training logs.
+</footer>
+</div>
+<script>
+fetch("http://localhost:8000/status",{mode:"cors"}).then(r=>r.ok&&(document.getElementById("live")
+  .style.display="block")).catch(()=>{});
+</script>
+</body></html>

@@ -1,0 +1,34 @@
+[
+ {
+  "q": "What license does black use?",
+  "reasoning": "the context is about black.\nit says: License: MIT.",
+  "a": "black is released under the MIT license.",
+  "context": "black 26.5.1: The uncompromising code formatter. The Uncompromising Code Formatter \u201cAny color you like.\u201d Black is the uncompromising Python code formatter. By using it, you agree to cede control over minutiae of hand-for",
+  "checkpoint": "sft_demo.pt",
+  "step": 355
+ },
+ {
+  "q": "Does fastapi depend on pydantic?",
+  "reasoning": "dependencies listed: letter, email-validator, pydantic, pydantic-core, pydantic, pydantic, pydantic, pydantic, pydantic, tzdata, tzdata.\nlooking for pydantic-validator: it is in the list.",
+  "a": "Yes, fastapi depends on pydantic-validator.",
+  "context": "(1) fastapi 0.141.1: FastAPI framework, high performance, easy to learn, fast to code, ready for production FastAPI framework, high performance, easy to learn, fast to code, ready for production Documentation : [https://",
+  "checkpoint": "sft_demo.pt",
+  "step": 355
+ },
+ {
+  "q": "What is 3471 + 2856?",
+  "reasoning": "units: 2 + 0 = 2, write 2\ntens: 2 + 2 = 2, write 2\nhundreds: 2 + 2 = 2, write 2\nthousands: 2 + 2 = 2, write 2\nreading the digits back: 27130",
+  "a": "7111 + 27 = 27110",
+  "context": "",
+  "checkpoint": "sft_demo.pt",
+  "step": 355
+ },
+ {
+  "q": "Who won the 2038 World Cup?",
+  "reasoning": "",
+  "a": "The context does not mention that, so I cannot answer it reliably.",
+  "context": "repoze.who 3.1.0: repoze.who is an identification and authentication framework for WSGI. repoze.who .. image:: https://travis-ci.org/repoze/repoze.who.png?branch=master :target: https://travis-ci.org/repoze/repoze.who ..",
+  "checkpoint": "sft_demo.pt",
+  "step": 355
+ }
+]
