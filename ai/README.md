@@ -76,7 +76,59 @@ the default); add `--time-budget 3600` to stop cleanly after an hour.
 
 Generated data (`ai/data/corpus/`, `*.bin`) and `ai/checkpoints/` are git-ignored.
 
+## Stage 2 — making it answer questions
+
+A 5M-parameter model has no room to memorise the world; what it *can* learn is a chat format
+and how to answer **from a context passage handed to it at inference time**. So stage 2 is
+instruction tuning + retrieval grounding:
+
+| file | what it does |
+|---|---|
+| `ai/build_qa.py` | pulls metadata for 11,922 PyPI packages → `qa/knowledge.jsonl`, and generates **145,864 QA examples** (~18M tokens) → `qa/sft.jsonl` |
+| `ai/finetune.py` | SFT on those examples, loss on answer tokens only → `checkpoints/sft.pt` |
+| `ai/retrieve.py` | BM25-lite keyword search over the 11,922-package knowledge base (stdlib only) |
+| `ai/chat.py` | retrieve → build prompt → generate (CLI + `Assistant` class) |
+| `ai/serve.py` | chat web UI with a retrieval toggle |
+
+Chat format (plain text, so no new tokenizer symbols are needed):
+
+```
+### Question:
+Context: black 26.5.1: The uncompromising code formatter. License: MIT. Requires Python >=3.10. …
+Question: How do I install black?
+
+### Answer:
+Install it with pip:
+
+pip install black<|endoftext|>
+```
+
+The example mix: grounded factual QA (what is X / install / version / license / Python support /
+dependencies / author / homepage / import), closed-book variants of the most memorisable facts,
+"which package should I use for …" recommendations, 20k arithmetic and string exercises, core
+Python how-tos, and — importantly — **refusals**: when the retrieved context does not contain the
+answer, the target response is "The context does not mention that, so I cannot answer it reliably."
+
+```bash
+python ai/build_qa.py --packages 12000            # knowledge base + SFT set
+python -m ai.finetune --tokens 15000000           # ~1 h on 2 vCPU
+python -m ai.chat "what license does requests use?"
+python -m ai.serve --port 8000                    # chat UI
+```
+
+### Honest expectations
+
+This is a 5M-parameter model — about 1/35,000th of a frontier model. It will not answer *any*
+question. What it can realistically do after the full run: reply in the right format, pull facts
+(license, version, dependencies, install command) out of a retrieved context, recommend a package
+for a described task, handle small arithmetic/string tasks, and refuse when the context is empty.
+Anything outside the knowledge base is a coin flip at best, which is exactly why the refusal
+behaviour is trained in.
+
 ## Training curve
 
 Live metrics are appended to `ai/checkpoints/log.jsonl` (loss, EMA loss, tokens/s, val loss
-every 250 steps) and human-readable output to `ai/checkpoints/train.log`.
+every 250 steps) and human-readable output to `ai/checkpoints/train.log`; the SFT stage logs to `sft_log.jsonl` / `sft.log`.
+
+Current run: pretraining to 100M tokens, then instruction tuning on 15M SFT tokens, chained in
+one background job (~8 h total on 2 vCPU).

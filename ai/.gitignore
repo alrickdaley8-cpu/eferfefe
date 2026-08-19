@@ -3,3 +3,4 @@ data/*.bin
 data/*.npy
 checkpoints/
 __pycache__/
+data/qa/sft.jsonl
