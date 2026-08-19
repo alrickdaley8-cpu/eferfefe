@@ -73,6 +73,8 @@ supervise() {
 
     if [[ $rc -eq 0 ]]; then
       backoff=5
+      # a finished stage is worth keeping across machine resets
+      [[ -f "$CKPT/pretrain.done" || -f "$CKPT/sft.done" ]] && "$ROOT/ai/publish_model.sh" publish || true
       continue                      # stage finished or checkpointed cleanly; loop picks the next one
     fi
     echo "[daemon] stage exited with code $rc — restarting from checkpoint in ${backoff}s"

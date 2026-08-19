@@ -63,16 +63,48 @@ resumes automatically, so it can be stopped and restarted freely.
 
 ## Reproduce
 
-```bash
-python -m venv .venv && .venv/bin/pip install torch numpy tokenizers requests
+One command takes a bare clone to a running system — environment, corpus, tokenizer, tokenised
+data, knowledge base, instruction + reasoning sets, then the background trainer:
 
-python ai/build_corpus.py --target-mb 450 --workers 24     # ~2 min, 470 MB
-python ai/train_tokenizer.py --vocab-size 8192             # ~40 s
-python ai/prepare_data.py --max-tokens 100000000           # ~95 s
-ai/daemon.sh start                                         # runs everything in the background
-python -m ai.sample --prompt "# file: README.md" --tokens 200
-python -m ai.serve --port 8000                             # web playground
+```bash
+ai/bootstrap.sh              # everything (~10 min of setup, then training runs in the background)
+ai/bootstrap.sh --quick      # 25 MB corpus / 4M tokens: smoke-tests the whole pipeline in ~2 min
+ai/bootstrap.sh --data-only  # build artefacts, don't start training
 ```
+
+Every step is skipped if its output already exists, so re-running is safe and cheap. That matters:
+`ai/data/*.bin`, `ai/data/corpus/` and `ai/checkpoints/` are git-ignored, so they disappear whenever
+the machine is recycled — bootstrap rebuilds them, reusing the committed `tokenizer.json` and
+`knowledge.jsonl` (and regenerating the instruction set offline from that knowledge base, no
+network needed).
+
+Individual steps still work on their own:
+
+```bash
+python ai/build_corpus.py --target-mb 450    # ~2 min, 470 MB
+python ai/train_tokenizer.py                 # ~40 s
+python ai/prepare_data.py                    # exactly 100,000,000 tokens
+python ai/build_qa.py --from-knowledge       # instruction set, offline
+python ai/build_reasoning.py                 # chain-of-thought set
+ai/daemon.sh start                           # background trainer
+python -m ai.serve --port 8000               # site + chat
+```
+
+## Tests
+
+`python -m ai.tests` runs 44 tests over the whole stack in ~4 s — parameter count and weight tying,
+KV-cache equivalence against a full forward pass, context-limit enforcement, tokenizer roundtrip,
+token-budget checks on the `.bin` files, retrieval ranking and confidence gating, every branch of
+the grounded answer layer plus verification semantics, the streaming think/answer channels (no
+`<think>` tag ever leaks), all HTTP endpoints against a live in-process server, page rendering and
+the daemon script's syntax. Tests that need artefacts skip cleanly on a fresh clone.
+
+## Surviving a reset
+
+`ai/publish_model.sh publish` copies the current best checkpoint into git-tracked `ai/release/`
+(~20 MB + metadata); `ai/bootstrap.sh` restores it automatically when no live checkpoint exists, and
+the daemon publishes on its own each time a training stage completes. The checkpoints directory
+itself stays out of git.
 
 Resume an interrupted run with the same `python -m ai.train ...` command (`--resume auto` is
 the default); add `--time-budget 3600` to stop cleanly after an hour.

@@ -259,8 +259,16 @@ def main() -> None:
     ap.add_argument("--packages", type=int, default=12000)
     ap.add_argument("--workers", type=int, default=32)
     ap.add_argument("--arith", type=int, default=20000)
+    ap.add_argument("--from-knowledge", action="store_true",
+                    help="reuse ai/data/qa/knowledge.jsonl instead of hitting the network")
     args = ap.parse_args()
     os.makedirs(QA_DIR, exist_ok=True)
+
+    know_path = os.path.join(QA_DIR, "knowledge.jsonl")
+    if args.from_knowledge and os.path.exists(know_path):
+        know = [json.loads(l) for l in open(know_path)]
+        log(f"[qa] reusing {len(know):,} cached package records (no network)")
+        return write_examples(know, args)
 
     with open(TOP_CSV) as f:
         names = [r["project"] for r in csv.DictReader(f)][: args.packages]
@@ -281,11 +289,14 @@ def main() -> None:
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
         list(ex.map(work, names))
 
-    with open(os.path.join(QA_DIR, "knowledge.jsonl"), "w") as f:
+    with open(know_path, "w") as f:
         for k in know:
             f.write(json.dumps(k) + "\n")
     log(f"[qa] {len(know)} packages of knowledge")
+    write_examples(know, args)
 
+
+def write_examples(know: list[dict], args) -> None:
     rng = random.Random(0)
     examples: list[dict] = []
     for k in know:

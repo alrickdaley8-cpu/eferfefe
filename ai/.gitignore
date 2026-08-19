@@ -7,3 +7,6 @@ data/qa/reasoning.jsonl
 data/qa/sft.jsonl
 data/qa/sft_mask.bin
 data/qa/sft_tokens.bin
+
+# published weights live in ai/release/ and ARE tracked (see ai/publish_model.sh)
+!release/
