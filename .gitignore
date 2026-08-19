@@ -5,3 +5,5 @@ data/tokens.pt
 checkpoints/*.pt
 __pycache__/
 data/chat_finetune.jsonl
+data/general_qa.jsonl
+data/rag_qa.jsonl

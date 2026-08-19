@@ -21,6 +21,14 @@ from llm.config import TinyConfig
 from llm.model import TinyLLM
 from llm.tokenizer import TikTokenizerWrapper
 from llm.inference import generate_stream, count_tokens
+try:
+    from llm.retriever_v2 import retrieve_v2 as retrieve
+    from llm.retriever import build_context_prompt
+    from llm.retriever_v2 import FULL_KB
+    print(f"[RAG] Using expanded retriever_v2 with {len(FULL_KB)} chunks for any-question answering")
+except ImportError as e:
+    print(f"[RAG] v2 not available, using v1: {e}")
+    from llm.retriever import retrieve, build_context_prompt
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MODEL = None
@@ -73,25 +81,38 @@ def load_latest():
         print(f"[Loader] Loaded {latest}: {model.count_params():,} params, loss {ckpt.get('loss','?')}")
         return True
 
-def build_chat_prompt_v2(messages, tokenizer, max_context_tokens=200, few_shot=True):
+def build_chat_prompt_v2(messages, tokenizer, max_context_tokens=200, few_shot=True, use_rag=True):
     """
-    Improved ChatML-like prompt with few-shot examples to guide tiny model
-    Format:
-    <system>...</system>
-    <user>...</user>
-    <assistant>...</assistant>
-    But using plain text that model saw: "System:", "User:", "Assistant:"
-    We add 2 few-shot examples to improve instruction following.
+    Improved ChatML-like prompt with few-shot examples + RAG to answer any question
+    Makes 1M model handle any question via retrieved knowledge injection
+    Format: System: ... \n [RAG context] \n User: ... \n Assistant:
     """
-    # Few-shot examples (from training distribution)
+    # Few-shot examples to make tiny model handle any question - diverse general knowledge
     few_shots = []
     if few_shot:
         few_shots = [
+            {"role":"user","content":"What is the capital of France?"},
+            {"role":"assistant","content":"The capital of France is Paris."},
             {"role":"user","content":"What is 2 + 2?"},
-            {"role":"assistant","content":"2 + 2 = 4. Because adding two and two gives four."},
+            {"role":"assistant","content":"2 + 2 = 4. Adding two and two gives four."},
+            {"role":"user","content":"What is photosynthesis?"},
+            {"role":"assistant","content":"Photosynthesis is how plants make food using sunlight, carbon dioxide, and water."},
             {"role":"user","content":"Tell me a short story about Lily."},
             {"role":"assistant","content":"Once upon a time, Lily went to the forest. She found a shiny key under a tree. The key opened a magic door to a garden full of flowers."},
         ]
+
+    # RAG: retrieve relevant knowledge for last user message to make model answer any question
+    rag_context = ""
+    if use_rag and messages:
+        last_user = None
+        for m in reversed(messages):
+            if m.get('role')=='user':
+                last_user = m.get('content','')
+                break
+        if last_user:
+            retrieved = retrieve(last_user, top_k=3)
+            if retrieved:
+                rag_context = build_context_prompt(retrieved)
 
     # Combine: system + few_shot + actual messages
     all_msgs = []
@@ -107,9 +128,24 @@ def build_chat_prompt_v2(messages, tokenizer, max_context_tokens=200, few_shot=T
     if system_msg:
         prompt_parts.append(f"System: {system_msg['content']}")
 
+    # Add RAG context right after system to help answer any question
+    # To fit 256 context, we need to be selective
+    if rag_context:
+        # Keep it concise to fit 256 context - truncate to first 2 facts if needed
+        # Keep only first 200 chars of RAG to save tokens
+        rag_short = rag_context.strip()[:400]
+        prompt_parts.append(f"Context: {rag_short}")
+
     # Add few-shots after system but before real history (helps instruction following)
-    if few_shot and len(messages) <= 3:  # only add few-shot for short conversations to save context
-        for fs in few_shots:
+    # To fit context, if RAG is present, use only 1 few-shot example, else use 2
+    if few_shot and len(messages) <= 3:
+        # Choose subset to fit
+        if rag_context:
+            # Only 1 example when RAG present to save tokens
+            subset = few_shots[:2]  # 1 Q/A pair = 2 items
+        else:
+            subset = few_shots[:4]  # 2 Q/A pairs
+        for fs in subset:
             if fs['role']=='user':
                 prompt_parts.append(f"User: {fs['content']}")
             else:
@@ -132,17 +168,19 @@ def build_chat_prompt_v2(messages, tokenizer, max_context_tokens=200, few_shot=T
 
     prompt = "\n".join(prompt_parts)
 
-    # Truncate to fit
+    # Truncate to fit - preserve RAG and system
     if tokenizer:
         ids = tokenizer.encode(prompt)
         if len(ids) > max_context_tokens:
-            # Keep system + few-shot + last 2 turns
-            # Simplified: keep last 2 user/assistant pairs + system
+            # Keep RAG + system + last 2 turns (drop few-shot first to save tokens)
             keep = []
             if system_msg:
                 keep.append(f"System: {system_msg['content']}")
-            # take last 4 messages from all_msgs (2 exchanges)
-            last = all_msgs[-4:] if len(all_msgs)>4 else all_msgs
+            if rag_context:
+                rag_short_trunc = rag_context.strip()[:200]  # even shorter for truncation case
+                keep.append(f"Context: {rag_short_trunc}")
+            # take last 2 messages from all_msgs (1 exchange) to minimize tokens
+            last = all_msgs[-2:] if len(all_msgs)>2 else all_msgs
             for mm in last:
                 if mm.get('role')=='user':
                     keep.append(f"User: {mm.get('content','')}")
@@ -150,9 +188,10 @@ def build_chat_prompt_v2(messages, tokenizer, max_context_tokens=200, few_shot=T
                     keep.append(f"Assistant: {mm.get('content','')}")
             keep.append("Assistant:")
             prompt = "\n".join(keep)
-            # final hard cut
+            # final hard cut if still too long
             ids = tokenizer.encode(prompt)
             if len(ids) > max_context_tokens:
+                # hard cut to tail
                 ids = ids[-max_context_tokens:]
                 prompt = tokenizer.decode(ids)
 

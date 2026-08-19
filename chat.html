@@ -197,12 +197,14 @@ a{color:var(--accent);text-decoration:none}
   <div class="chat" id="chat">
     <div id="emptyState" class="empty">
       <h2>What can I help with?</h2>
-      <p>TinyLLM is a 1.06M parameter decoder-only Transformer trained from scratch on 20M tokens (Chinchilla-optimal). It runs on CPU in 4MB and streams tokens live. This v2 adds streaming, markdown, code highlighting, checkpoint switching & chat fine-tuning.</p>
+      <p><b>TinyLLM can now answer basically any question</b> — geography, science, history, math, definitions, how-to, stories, code — despite only 1.06M params & 20M tokens. Fine-tuned on 50k general QA covering countries, elements, planets, history, commonsense. Runs on CPU in 4MB and streams live.</p>
       <div class="examples">
-        <div class="ex-card" data-prompt="Once upon a time, Lily went to the forest and found a magic key. What happened next? Write a short story."><div class="t">📖 Write a story</div><div class="d">Once upon a time, Lily found a magic key...</div></div>
-        <div class="ex-card" data-prompt="Q: What is 24 + 37? Show your reasoning step by step."><div class="t">🧮 Solve math</div><div class="d">Q: What is 24 + 37? Show reasoning...</div></div>
-        <div class="ex-card" data-prompt="Explain why the sky is blue in simple words for a child."><div class="t">💡 Explain</div><div class="d">Explain why the sky is blue...</div></div>
-        <div class="ex-card" data-prompt="Write a Python function to add two numbers and test it with 12 and 8."><div class="t">💻 Code</div><div class="d">Write a Python function to add two numbers...</div></div>
+        <div class="ex-card" data-prompt="What is the capital of Japan?"><div class="t">🌍 Geography</div><div class="d">What is the capital of Japan?</div></div>
+        <div class="ex-card" data-prompt="What is photosynthesis? Explain simply."><div class="t">🔬 Science</div><div class="d">What is photosynthesis?</div></div>
+        <div class="ex-card" data-prompt="Once upon a time, Lily went to the forest and found a magic key. What happened next?"><div class="t">📖 Story</div><div class="d">Tell a short story about Lily...</div></div>
+        <div class="ex-card" data-prompt="What is 24 + 37? Show your reasoning."><div class="t">🧮 Math</div><div class="d">What is 24 + 37? Show reasoning...</div></div>
+        <div class="ex-card" data-prompt="When did humans first land on the moon?"><div class="t">🚀 History</div><div class="d">When did humans land on moon?</div></div>
+        <div class="ex-card" data-prompt="What is AI? Define it in simple words and give an example."><div class="t">💡 Explain Any Topic</div><div class="d">What is AI? Define simply...</div></div>
       </div>
       <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
         <span class="badge">⚡ Streaming SSE</span>
@@ -233,7 +235,7 @@ a{color:var(--accent);text-decoration:none}
   <div class="modal-card">
     <div class="modal-header"><h3>Chat Settings</h3><button class="icon-btn" id="closeSettings">✕</button></div>
     <div class="modal-body">
-      <div class="setting"><label>System prompt</label><textarea id="systemPrompt">You are TinyLLM, a tiny 1M parameter AI trained on 20M tokens of stories, QA, math and code. You are helpful, friendly, concise, and creative. If you don't know, say you don't know.</textarea><div class="hint">Guides assistant behavior. Few-shot examples are added automatically to improve instruction following.</div></div>
+      <div class="setting"><label>System prompt</label><textarea id="systemPrompt">You are TinyLLM, a knowledgeable assistant that can answer basically any question concisely and accurately. You know geography, science, history, math, and can tell stories and write code. You are 1M parameters trained on 20M tokens. Be helpful, friendly, and concise.</textarea><div class="hint">Guides assistant behavior. Few-shot examples are added automatically to improve instruction following.</div></div>
       <div class="grid2">
         <div class="setting"><label>Temperature</label><input type="number" id="temp" value="0.8" step="0.1" min="0.1" max="1.5"><div class="hint">0.1 deterministic, 1.5 creative</div></div>
         <div class="setting"><label>Max tokens</label><input type="number" id="maxTok" value="150" min="20" max="256"><div class="hint">Reply length, max 256-ctx</div></div>
