@@ -20,6 +20,7 @@ LOG="$CKPT/daemon.log"
 PRETRAIN_TOKENS="${PRETRAIN_TOKENS:-100000000}"
 SFT_TOKENS="${SFT_TOKENS:-15000000}"
 MAX_BACKOFF=300
+SERVE_PORT="${SERVE_PORT:-8000}"
 
 mkdir -p "$CKPT"
 
@@ -27,8 +28,28 @@ is_running() { [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
 
 stage_done() { [[ -f "$CKPT/$1.done" ]]; }   # markers written by the trainers themselves
 
+port_busy() { "$PY" - "$1" <<'EOF' 2>/dev/null
+import socket, sys
+s = socket.socket()
+s.settimeout(1)
+sys.exit(0 if s.connect_ex(("127.0.0.1", int(sys.argv[1]))) == 0 else 1)
+EOF
+}
+
+serve_watchdog() {
+  # keep the chat UI alive too, but never fight an already-running server
+  while true; do
+    if ! port_busy "$SERVE_PORT"; then
+      echo "[daemon] starting chat server on :$SERVE_PORT"
+      nice -n 10 "$PY" -m ai.serve --port "$SERVE_PORT" --threads 1 >>"$CKPT/serve.log" 2>&1 &
+    fi
+    sleep 60
+  done
+}
+
 supervise() {
   echo "[daemon] started pid $$ at $(date -Is)"
+  [[ "${SERVE:-1}" == "1" ]] && serve_watchdog &
   local backoff=5
   while true; do
     if ! stage_done pretrain; then
