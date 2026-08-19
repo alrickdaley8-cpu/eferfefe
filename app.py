@@ -247,7 +247,7 @@ class Handler(BaseHTTPRequestHandler):
                 m = re.findall(r'tok=([\d\.]+)M', tail)
                 if m:
                     return float(m[-1])
-        except:
+        except Exception as e:
             pass
         return 0
 
@@ -380,14 +380,14 @@ class Handler(BaseHTTPRequestHandler):
                             break
                     if last_user:
                         retrieved_for_fallback = retrieve(last_user, top_k=2)
-                except:
+                except Exception as e:
                     retrieved_for_fallback = []
 
                 # Always use RAG for factual questions to ensure any question can be answered
                 is_factual = False
                 try:
                     is_factual = any(kw in last_user.lower() for kw in ["what is", "what are", "capital", "symbol", "how many", "when did", "who", "where", "why does", "why do", "how to", "define", "explain", "largest", "smallest", "who invented", "how to", "what makes"])
-                except:
+                except Exception as e:
                     pass
 
                 # If factual and we have retrieved knowledge, use it directly (guarantees correct answer from KB)
@@ -483,7 +483,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.wfile.write(f"data: {final_payload}\n\n".encode())
                     self.wfile.write(b"data: [DONE]\n\n")
                     self.wfile.flush()
-                except:
+                except Exception as e:
                     pass
 
         except Exception as e:
@@ -493,7 +493,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 try:
                     self.wfile.write(f"data: {json.dumps({'error': str(e)})}\n\n".encode())
-                except:
+                except Exception as e:
                     pass
 
     def serve_file(self, path, ctype):

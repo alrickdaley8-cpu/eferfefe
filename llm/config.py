@@ -96,3 +96,40 @@ class TinyConfigV2(TinyConfig):
 
     def effective_tokens_per_batch(self):
         return self.batch_size * self.grad_accum_steps * self.max_seq_len
+
+@dataclass
+class TinyConfig2M(TinyConfig):
+    """2M parameter model - as powerful as possible within 2M budget"""
+    # Architecture: ~2.02M params, more powerful
+    vocab_size: int = 4096
+    max_seq_len: int = 512        # longer context for in-depth explanations (2x)
+    d_model: int = 128            # bigger hidden
+    n_layers: int = 7             # deeper
+    n_heads: int = 8              # 128/8=16 per head
+    d_ff: int = 384               # SwiGLU: 3*128*384=147k per layer
+    dropout: float = 0.1
+    tie_weights: bool = True
+    use_swiglu: bool = True       # SwiGLU more powerful
+
+    # Training: 2M params *20 = 40M tokens Chinchilla optimal
+    total_tokens: int = 40_000_000
+    batch_size: int = 32
+    grad_accum_steps: int = 4     # eff batch 32*4*512=65536 tokens
+    max_steps: int = 610          # 40M / 65536 ≈ 610 effective
+    micro_steps: int = 2440       # micro steps = effective * grad_accum
+    warmup_steps: int = 300
+    lr_max: float = 6e-4
+    lr_min: float = 6e-5
+    weight_decay: float = 0.1
+    betas: tuple = (0.9, 0.95)
+    grad_clip: float = 1.0
+
+    # Advanced
+    use_compile: bool = False
+    use_ema: bool = True
+    ema_decay: float = 0.999
+    use_amp: bool = False
+    val_split: float = 0.05
+
+    def effective_tokens_per_batch(self):
+        return self.batch_size * self.grad_accum_steps * self.max_seq_len

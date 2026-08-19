@@ -30,29 +30,19 @@ def build_rope_cache(seq_len, head_dim, device, base=10000):
 def apply_rope(q, k, cos, sin):
     # q,k: [B, n_heads, T, head_dim]
     # cos,sin: [T, head_dim//2]
-    # rotate half
-    def rotate_half(x):
-        # x: [..., head_dim]
-        x1 = x[..., ::2]
-        x2 = x[..., 1::2]
-        # (x1, x2) -> (-x2, x1)
-        return torch.stack((-x2, x1), dim=-1).flatten(-2)
-
-    # cos,sin need broadcasting: [1,1,T,head_dim//2] but we have interleaved
-    # Expand cos/sin to head_dim: repeat each
     T = q.size(2)
-    cos = cos[:T] # [T, Hd//2]
+    cos = cos[:T]
     sin = sin[:T]
-    # reshape for broadcast: [1,1,T, Hd//2]
     cos = cos[None, None, :, :]
     sin = sin[None, None, :, :]
 
-    # split even/odd
+    # Split even/odd for RoPE rotation
     q1 = q[..., ::2]
     q2 = q[..., 1::2]
     k1 = k[..., ::2]
     k2 = k[..., 1::2]
 
+    # RoPE: q_rot = q*cos + rotate_half(q)*sin
     q_rot = torch.stack((q1 * cos - q2 * sin, q1 * sin + q2 * cos), dim=-1).flatten(-2)
     k_rot = torch.stack((k1 * cos - k2 * sin, k1 * sin + k2 * cos), dim=-1).flatten(-2)
     return q_rot, k_rot
