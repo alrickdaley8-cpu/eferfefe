@@ -1,121 +1,158 @@
 """
-TinyLLM ChatGPT-style server
-- Serves chat.html as ChatGPT clone
-- /api/chat with messages array
-- /api/generate for raw completion
-- /api/model_info
+TinyLLM ChatGPT-style server v2 - Improvements
+- Streaming /api/chat/stream via SSE
+- Improved prompt building with few-shot chat examples
+- Checkpoint selector, model info
+- KV-cache-ready inference
+- Auto-reload latest checkpoint
 """
 import os
 import json
 import glob
+import time
 import torch
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 import mimetypes
+import threading
 
 from tokenizers import Tokenizer
 from llm.config import TinyConfig
 from llm.model import TinyLLM
 from llm.tokenizer import TikTokenizerWrapper
+from llm.inference import generate_stream, count_tokens
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MODEL = None
 TOKENIZER = None
 CFG = None
 CKPT_PATH = None
+CKPT_MTIME = 0
+LOCK = threading.Lock()
 
-def load():
-    global MODEL, TOKENIZER, CFG, CKPT_PATH
-    ckpt_path = "checkpoints/model_final.pt"
-    candidates = glob.glob("checkpoints/model_*.pt")
-    if not os.path.exists(ckpt_path) and candidates:
-        ckpt_path = sorted(candidates, key=lambda x: os.path.getmtime(x))[-1]
-    if not os.path.exists(ckpt_path):
-        print("No checkpoint found - running random init model for demo")
-        CFG = TinyConfig()
-        MODEL = TinyLLM(CFG).to(DEVICE)
-        if os.path.exists(CFG.tokenizer_path):
-            hf = Tokenizer.from_file(CFG.tokenizer_path)
-            TOKENIZER = TikTokenizerWrapper(hf)
-            print(f"Random model loaded: {MODEL.count_params():,} params")
-        return
+def load_latest():
+    global MODEL, TOKENIZER, CFG, CKPT_PATH, CKPT_MTIME
+    with LOCK:
+        candidates = glob.glob("checkpoints/model_*.pt")
+        if not candidates:
+            # try final
+            if os.path.exists("checkpoints/model_final.pt"):
+                candidates = ["checkpoints/model_final.pt"]
+            else:
+                return False
 
-    CKPT_PATH = ckpt_path
-    print(f"Loading checkpoint {ckpt_path} on {DEVICE}")
-    try:
-        ckpt = torch.load(ckpt_path, map_location=DEVICE, weights_only=False)
-    except Exception as e:
-        print(f"Failed load {e}, trying cpu")
-        ckpt = torch.load(ckpt_path, map_location='cpu', weights_only=False)
-    CFG = ckpt.get('config', TinyConfig())
-    MODEL = TinyLLM(CFG).to(DEVICE)
-    MODEL.load_state_dict(ckpt['model'])
-    MODEL.eval()
-    hf = Tokenizer.from_file(CFG.tokenizer_path)
-    TOKENIZER = TikTokenizerWrapper(hf)
-    print(f"Model loaded: {MODEL.count_params():,} params from {ckpt_path}")
+        latest = max(candidates, key=lambda x: os.path.getmtime(x))
+        mtime = os.path.getmtime(latest)
+        if latest == CKPT_PATH and mtime == CKPT_MTIME and MODEL is not None:
+            return True
 
-def build_chat_prompt(messages, tokenizer, max_context_tokens=200):
+        print(f"[Loader] Loading {latest} (mtime {mtime}) on {DEVICE}")
+        try:
+            ckpt = torch.load(latest, map_location=DEVICE, weights_only=False)
+        except Exception as e:
+            print(f"[Loader] Failed {e}")
+            return False
+
+        cfg = ckpt.get('config', TinyConfig())
+        model = TinyLLM(cfg).to(DEVICE)
+        model.load_state_dict(ckpt['model'])
+        model.eval()
+
+        # tokenizer (should already exist)
+        tok_path = cfg.tokenizer_path if hasattr(cfg,'tokenizer_path') else "checkpoints/tokenizer.json"
+        if not os.path.exists(tok_path):
+            tok_path = "checkpoints/tokenizer.json"
+        hf = Tokenizer.from_file(tok_path)
+        wrapper = TikTokenizerWrapper(hf)
+
+        MODEL = model
+        TOKENIZER = wrapper
+        CFG = cfg
+        CKPT_PATH = latest
+        CKPT_MTIME = mtime
+        print(f"[Loader] Loaded {latest}: {model.count_params():,} params, loss {ckpt.get('loss','?')}")
+        return True
+
+def build_chat_prompt_v2(messages, tokenizer, max_context_tokens=200, few_shot=True):
     """
-    messages: list of {role, content}
-    Build string: System: ... \nUser: ... \nAssistant: ...
-    Truncate to fit context window
+    Improved ChatML-like prompt with few-shot examples to guide tiny model
+    Format:
+    <system>...</system>
+    <user>...</user>
+    <assistant>...</assistant>
+    But using plain text that model saw: "System:", "User:", "Assistant:"
+    We add 2 few-shot examples to improve instruction following.
     """
-    # Format
-    parts = []
+    # Few-shot examples (from training distribution)
+    few_shots = []
+    if few_shot:
+        few_shots = [
+            {"role":"user","content":"What is 2 + 2?"},
+            {"role":"assistant","content":"2 + 2 = 4. Because adding two and two gives four."},
+            {"role":"user","content":"Tell me a short story about Lily."},
+            {"role":"assistant","content":"Once upon a time, Lily went to the forest. She found a shiny key under a tree. The key opened a magic door to a garden full of flowers."},
+        ]
+
+    # Combine: system + few_shot + actual messages
+    all_msgs = []
+    system_msg = None
     for m in messages:
-        role = m.get('role','user').lower()
+        if m.get('role')=='system' and system_msg is None:
+            system_msg = m
+        else:
+            all_msgs.append(m)
+
+    # Build with system first
+    prompt_parts = []
+    if system_msg:
+        prompt_parts.append(f"System: {system_msg['content']}")
+
+    # Add few-shots after system but before real history (helps instruction following)
+    if few_shot and len(messages) <= 3:  # only add few-shot for short conversations to save context
+        for fs in few_shots:
+            if fs['role']=='user':
+                prompt_parts.append(f"User: {fs['content']}")
+            else:
+                prompt_parts.append(f"Assistant: {fs['content']}")
+
+    # Add actual conversation (last N turns)
+    # Keep last 4 exchanges max for 256 context
+    # Truncate from start if needed
+    for m in all_msgs:
+        role = m.get('role','user')
         content = m.get('content','').strip()
-        if role == 'system':
-            parts.append(f"System: {content}")
-        elif role == 'user':
-            parts.append(f"User: {content}")
-        elif role == 'assistant':
-            parts.append(f"Assistant: {content}")
-    # Add final assistant prefix to generate
-    if not parts or not parts[-1].startswith("Assistant:"):
-        parts.append("Assistant:")
+        if role=='user':
+            prompt_parts.append(f"User: {content}")
+        elif role=='assistant':
+            prompt_parts.append(f"Assistant: {content}")
 
-    prompt = "\n".join(parts)
+    # Final assistant prefix
+    if not prompt_parts or not prompt_parts[-1].startswith("Assistant:"):
+        prompt_parts.append("Assistant:")
 
-    # Truncate if too long: keep system + last few
+    prompt = "\n".join(prompt_parts)
+
+    # Truncate to fit
     if tokenizer:
         ids = tokenizer.encode(prompt)
         if len(ids) > max_context_tokens:
-            # Keep system message + last 2 exchanges
-            # Try to keep last ~max_context_tokens
-            # Simple: take tail tokens and decode back? For chat we want to keep recent.
-            # We'll iteratively drop oldest non-system messages
-            # Keep first system if exists
-            system_msg = None
-            rest = []
-            for m in messages:
-                if m.get('role')=='system' and system_msg is None:
-                    system_msg = m
-                else:
-                    rest.append(m)
-            # Drop from start of rest until fits
-            while rest:
-                test_parts = []
-                if system_msg:
-                    test_parts.append(f"System: {system_msg['content']}")
-                for mm in rest:
-                    r = mm.get('role','user')
-                    if r=='user':
-                        test_parts.append(f"User: {mm.get('content','')}")
-                    elif r=='assistant':
-                        test_parts.append(f"Assistant: {mm.get('content','')}")
-                test_parts.append("Assistant:")
-                test_prompt = "\n".join(test_parts)
-                test_ids = tokenizer.encode(test_prompt)
-                if len(test_ids) <= max_context_tokens:
-                    prompt = test_prompt
-                    break
-                # drop oldest
-                rest.pop(0)
-            else:
-                # if still too long, just truncate to tail tokens
-                ids = tokenizer.encode(prompt)
+            # Keep system + few-shot + last 2 turns
+            # Simplified: keep last 2 user/assistant pairs + system
+            keep = []
+            if system_msg:
+                keep.append(f"System: {system_msg['content']}")
+            # take last 4 messages from all_msgs (2 exchanges)
+            last = all_msgs[-4:] if len(all_msgs)>4 else all_msgs
+            for mm in last:
+                if mm.get('role')=='user':
+                    keep.append(f"User: {mm.get('content','')}")
+                elif mm.get('role')=='assistant':
+                    keep.append(f"Assistant: {mm.get('content','')}")
+            keep.append("Assistant:")
+            prompt = "\n".join(keep)
+            # final hard cut
+            ids = tokenizer.encode(prompt)
+            if len(ids) > max_context_tokens:
                 ids = ids[-max_context_tokens:]
                 prompt = tokenizer.decode(ids)
 
@@ -125,24 +162,29 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
-        if path == "/" or path == "/index.html":
-            self.serve_file("chat.html", "text/html")
-        elif path == "/chat" or path == "/chat.html":
+        if path == "/" or path == "/index.html" or path == "/chat" or path == "/chat.html":
             self.serve_file("chat.html", "text/html")
         elif path == "/llm_demo.html":
             self.serve_file("llm_demo.html", "text/html")
         elif path == "/game" or path == "/game.html":
             self.serve_file("index.html", "text/html")
         elif path == "/api/model_info":
+            load_latest()
             info = {
                 "params": MODEL.count_params() if MODEL else 0,
-                "checkpoint": CKPT_PATH or "random-init",
+                "checkpoint": CKPT_PATH or "none",
+                "checkpoints": sorted(glob.glob("checkpoints/model_*.pt"), key=lambda x: os.path.getmtime(x), reverse=True)[:10],
                 "vocab": TOKENIZER.vocab_size() if TOKENIZER else 4096,
                 "context": CFG.max_seq_len if CFG else 256,
                 "device": str(DEVICE),
                 "total_tokens": 20000000,
+                "tokens_trained": self.get_trained_tokens(),
             }
             self.send_json(info)
+        elif path == "/api/checkpoints":
+            cps = sorted(glob.glob("checkpoints/model_*.pt"), key=lambda x: os.path.getmtime(x), reverse=True)
+            data = [{"path": p, "name": os.path.basename(p), "size_mb": round(os.path.getsize(p)/1024/1024,2), "mtime": os.path.getmtime(p)} for p in cps]
+            self.send_json(data)
         elif path.startswith("/checkpoints/") or path.startswith("/data/"):
             self.send_error(404)
         elif os.path.exists("."+path) and not ".." in path:
@@ -153,6 +195,21 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"Not found")
 
+    def get_trained_tokens(self):
+        # parse from training log
+        try:
+            with open("/tmp/arena-workspace/procs/full-train-20m-8c461c27/out.log","rb") as f:
+                f.seek(-2000, 2)
+                tail = f.read().decode(errors='ignore')
+                # find last tok= X.XXM
+                import re
+                m = re.findall(r'tok=([\d\.]+)M', tail)
+                if m:
+                    return float(m[-1])
+        except:
+            pass
+        return 0
+
     def do_POST(self):
         parsed = urlparse(self.path)
         length = int(self.headers.get('Content-Length', 0))
@@ -160,13 +217,47 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/generate":
             self.handle_generate(body)
         elif parsed.path == "/api/chat":
-            self.handle_chat(body)
+            self.handle_chat(body, stream=False)
+        elif parsed.path == "/api/chat/stream":
+            self.handle_chat(body, stream=True)
+        elif parsed.path == "/api/switch_checkpoint":
+            self.handle_switch(body)
         else:
             self.send_response(404)
             self.end_headers()
 
+    def handle_switch(self, body):
+        try:
+            data = json.loads(body)
+            ckpt = data.get("checkpoint")
+            if ckpt and os.path.exists(ckpt):
+                global CKPT_PATH, CKPT_MTIME
+                CKPT_PATH = None
+                CKPT_MTIME = 0
+                # force load specific
+                with LOCK:
+                    ck = torch.load(ckpt, map_location=DEVICE, weights_only=False)
+                    cfg = ck.get('config', TinyConfig())
+                    model = TinyLLM(cfg).to(DEVICE)
+                    model.load_state_dict(ck['model'])
+                    model.eval()
+                    hf = Tokenizer.from_file(cfg.tokenizer_path if hasattr(cfg,'tokenizer_path') else "checkpoints/tokenizer.json")
+                    wrapper = TikTokenizerWrapper(hf)
+                    globals()['MODEL'] = model
+                    globals()['TOKENIZER'] = wrapper
+                    globals()['CFG'] = cfg
+                    globals()['CKPT_PATH'] = ckpt
+                    globals()['CKPT_MTIME'] = os.path.getmtime(ckpt)
+                self.send_json({"ok":True, "checkpoint": ckpt, "params": model.count_params()})
+            else:
+                self.send_json({"error":"Checkpoint not found"}, 404)
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            self.send_json({"error":str(e)},500)
+
     def handle_generate(self, body):
         try:
+            load_latest()
             data = json.loads(body) if body else {}
             prompt = data.get("prompt", "Once upon a time")
             max_tokens = int(data.get("max_tokens", 100))
@@ -175,26 +266,28 @@ class Handler(BaseHTTPRequestHandler):
             top_p = float(data.get("top_p", 0.92))
 
             if MODEL is None or TOKENIZER is None:
-                self.send_json({"error": "Model not loaded - train first"}, 500)
+                self.send_json({"error": "Model not loaded"}, 500)
                 return
 
             ids = TOKENIZER.encode(prompt)
             x = torch.tensor([ids], dtype=torch.long, device=DEVICE)
+            start = time.time()
             with torch.no_grad():
                 out = MODEL.generate(x, max_new_tokens=max_tokens, temperature=temp, top_k=top_k, top_p=top_p)
+            elapsed = time.time()-start
             text = TOKENIZER.decode(out[0].tolist())
-
-            self.send_json({"prompt": prompt, "generated": text, "params": MODEL.count_params(), "checkpoint": CKPT_PATH})
+            tok_per_sec = max_tokens/elapsed if elapsed>0 else 0
+            self.send_json({"prompt": prompt, "generated": text, "params": MODEL.count_params(), "checkpoint": CKPT_PATH, "elapsed": elapsed, "tok_per_sec": tok_per_sec})
         except Exception as e:
             import traceback; traceback.print_exc()
             self.send_json({"error": str(e)}, 500)
 
-    def handle_chat(self, body):
+    def handle_chat(self, body, stream=False):
         try:
+            load_latest()
             data = json.loads(body) if body else {}
             messages = data.get("messages", [])
             if not messages:
-                # fallback to prompt
                 prompt = data.get("prompt", "")
                 if prompt:
                     messages = [{"role":"user","content":prompt}]
@@ -202,7 +295,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json({"error":"No messages"}, 400)
                     return
 
-            max_tokens = int(data.get("max_tokens", 120))
+            max_tokens = int(data.get("max_tokens", 150))
             temp = float(data.get("temperature", 0.8))
             top_k = int(data.get("top_k", 50))
             top_p = float(data.get("top_p", 0.92))
@@ -211,59 +304,105 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error":"Model not loaded"}, 500)
                 return
 
-            # Build prompt with chat format, ensure fits context
             max_context = (CFG.max_seq_len if CFG else 256) - max_tokens - 5
-            max_context = max(50, max_context)
-            chat_prompt = build_chat_prompt(messages, TOKENIZER, max_context_tokens=max_context)
+            max_context = max(60, max_context)
+            chat_prompt = build_chat_prompt_v2(messages, TOKENIZER, max_context_tokens=max_context, few_shot=True)
 
-            ids = TOKENIZER.encode(chat_prompt)
-            x = torch.tensor([ids], dtype=torch.long, device=DEVICE)
+            prompt_ids = TOKENIZER.encode(chat_prompt)
 
-            with torch.no_grad():
-                out = MODEL.generate(x, max_new_tokens=max_tokens, temperature=temp, top_k=top_k, top_p=top_p)
-            full_text = TOKENIZER.decode(out[0].tolist())
-
-            # Extract assistant response after last "Assistant:"
-            # full_text contains prompt + generation, so get new part
-            # Find last occurrence of "Assistant:" in full_text
-            # Generation starts after that
-            # Since chat_prompt ends with "Assistant:", the new generation is after it
-            # So cut prompt's token length from output
-            # But decoding may be ambiguous, so simplest: take full_text[len(chat_prompt):] or token-based
-            # Use token ids length
-            prompt_len = len(ids)
-            generated_ids = out[0].tolist()[prompt_len:]
-            generated_text = TOKENIZER.decode(generated_ids)
-
-            # Stop at next role marker if model hallucinates
-            # Stop at "\nUser:" or "\nSystem:" or "\nAssistant:" if appears again
-            stop_markers = ["\nUser:", "\nSystem:", "\nAssistant:", "User:", "System:"]
-            cut_at = len(generated_text)
-            for marker in stop_markers:
-                idx = generated_text.find(marker)
-                if idx != -1 and idx < cut_at:
-                    cut_at = idx
-            generated_text = generated_text[:cut_at].strip()
-
-            if not generated_text:
-                # fallback to full_text tail
-                generated_text = full_text[len(chat_prompt):].strip()
-                for marker in stop_markers:
+            if not stream:
+                # Non-streaming, fast
+                x = torch.tensor([prompt_ids], dtype=torch.long, device=DEVICE)
+                start = time.time()
+                with torch.no_grad():
+                    out = MODEL.generate(x, max_new_tokens=max_tokens, temperature=temp, top_k=top_k, top_p=top_p)
+                elapsed = time.time()-start
+                full_text = TOKENIZER.decode(out[0].tolist())
+                # extract new
+                generated_ids = out[0].tolist()[len(prompt_ids):]
+                generated_text = TOKENIZER.decode(generated_ids)
+                # cut stop markers
+                for marker in ["\nUser:", "\nSystem:", "\nAssistant:", "User:", "System:"]:
                     if marker in generated_text:
-                        generated_text = generated_text.split(marker)[0].strip()
+                        generated_text = generated_text.split(marker)[0]
+                generated_text = generated_text.strip()
 
-            self.send_json({
-                "generated": generated_text,
-                "full_prompt": chat_prompt,
-                "full_text": full_text,
-                "params": MODEL.count_params(),
-                "checkpoint": CKPT_PATH,
-                "tokens_used": len(ids)
-            })
+                self.send_json({
+                    "generated": generated_text,
+                    "full_prompt": chat_prompt,
+                    "full_text": full_text,
+                    "params": MODEL.count_params(),
+                    "checkpoint": CKPT_PATH,
+                    "tokens_used": len(prompt_ids),
+                    "elapsed": elapsed,
+                    "tok_per_sec": len(generated_ids)/elapsed if elapsed>0 else 0
+                })
+            else:
+                # Streaming via SSE
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Connection", "keep-alive")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+
+                start = time.time()
+                token_count = 0
+                accumulated = ""
+
+                # We need to stream incremental
+                # Use generate_stream generator
+                for token_id, full_decoded, done in generate_stream(MODEL, TOKENIZER, prompt_ids, max_new_tokens=max_tokens, temperature=temp, top_k=top_k, top_p=top_p, device=DEVICE):
+                    token_count += 1
+                    # Extract only new assistant part
+                    # full_decoded contains prompt + generated
+                    prompt_text = TOKENIZER.decode(prompt_ids)
+                    # new part
+                    if len(full_decoded) > len(chat_prompt):
+                        new_part = full_decoded[len(chat_prompt):]
+                    else:
+                        new_part = full_decoded
+
+                    # Cut stop markers
+                    truncated = False
+                    for marker in ["\nUser:", "\nSystem:"]:
+                        if marker in new_part:
+                            new_part = new_part.split(marker)[0]
+                            truncated = True
+                            break
+
+                    accumulated = new_part
+
+                    # Send SSE event
+                    payload = json.dumps({"token": TOKENIZER.decode([token_id]), "text": accumulated, "done": done or truncated, "tokens_used": len(prompt_ids)})
+                    try:
+                        self.wfile.write(f"data: {payload}\n\n".encode())
+                        self.wfile.flush()
+                    except BrokenPipeError:
+                        break
+
+                    if done or truncated:
+                        break
+
+                # final done event
+                elapsed = time.time()-start
+                final_payload = json.dumps({"generated": accumulated, "done": True, "elapsed": elapsed, "tok_per_sec": token_count/elapsed if elapsed>0 else 0, "checkpoint": CKPT_PATH, "params": MODEL.count_params()})
+                try:
+                    self.wfile.write(f"data: {final_payload}\n\n".encode())
+                    self.wfile.write(b"data: [DONE]\n\n")
+                    self.wfile.flush()
+                except:
+                    pass
 
         except Exception as e:
             import traceback; traceback.print_exc()
-            self.send_json({"error": str(e)}, status=500)
+            if not stream:
+                self.send_json({"error": str(e)}, 500)
+            else:
+                try:
+                    self.wfile.write(f"data: {json.dumps({'error': str(e)})}\n\n".encode())
+                except:
+                    pass
 
     def serve_file(self, path, ctype):
         try:
@@ -272,8 +411,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(data)))
-            # allow iframe preview
             self.send_header("X-Frame-Options", "ALLOWALL")
+            self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             self.wfile.write(data)
         except FileNotFoundError:
@@ -304,12 +443,10 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     os.makedirs("checkpoints", exist_ok=True)
-    load()
+    load_latest()
     port = int(os.environ.get("PORT", 8000))
-    print(f"Serving TinyLLM ChatGPT-style demo on http://0.0.0.0:{port}")
-    print(f" - Chat: http://localhost:{port}/ (chat.html)")
-    print(f" - Playground: http://localhost:{port}/llm_demo.html")
-    print(f" - Game: http://localhost:{port}/game")
+    print(f"Serving TinyLLM v2 ChatGPT-style on http://0.0.0.0:{port}")
+    print(f" - Chat: http://localhost:{port}/")
     server = HTTPServer(("0.0.0.0", port), Handler)
     try:
         server.serve_forever()

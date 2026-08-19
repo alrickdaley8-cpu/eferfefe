@@ -4,3 +4,4 @@ data/diverse_extension.txt
 data/tokens.pt
 checkpoints/*.pt
 __pycache__/
+data/chat_finetune.jsonl
