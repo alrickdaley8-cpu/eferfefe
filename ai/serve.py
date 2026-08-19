@@ -22,6 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import torch
 
 from ai.chat import CKPT_DIR, Assistant, default_ckpt, list_checkpoints
+from ai.make_page import page_data
 from ai.ui import PAGE
 
 NOT_READY = ("The model has no checkpoint yet — training writes the first one at step 250. "
@@ -124,6 +125,12 @@ class Handler(BaseHTTPRequestHandler):
                 "block_size": a.model.cfg.block_size}))
         if self.path == "/status":
             return self._send(200, json.dumps(training_status()))
+        if self.path == "/page-data":
+            # everything the landing page shows, live — so a served page is never a stale snapshot
+            try:
+                return self._send(200, json.dumps(page_data()))
+            except Exception as exc:
+                return self._send(500, json.dumps({"error": str(exc)}))
         self._send(404, json.dumps({"error": "not found"}))
 
     def do_POST(self):

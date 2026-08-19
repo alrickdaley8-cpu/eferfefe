@@ -414,6 +414,24 @@ class Pipeline(unittest.TestCase):
         self.assertIn("Talk to it", html)
         self.assertIn("5,015,808", html)
 
+    def test_index_html_is_not_stale(self):
+        """index.html embeds the chat client — regenerate it whenever ai/ui.py changes."""
+        from ai.make_page import ui_hash
+        index = os.path.join(ROOT, "index.html")
+        if not has(index):
+            self.skipTest("index.html not generated")
+        head = open(index, encoding="utf-8").read(400)
+        self.assertIn(f"ui-build {ui_hash()}", head,
+                      "index.html is out of date — run `python ai/make_page.py`")
+
+    def test_page_data_shape(self):
+        from ai.make_page import page_data
+        d = page_data()
+        for key in ("curves", "status", "checkpoints", "samples", "stats"):
+            self.assertIn(key, d)
+        for name in ("pretrain", "val", "sft"):
+            self.assertIsInstance(d["curves"][name], list)
+
     def test_eval_scoring(self):
         from ai.eval import scored
         self.assertTrue(scored("black is released under the MIT license.", "MIT"))

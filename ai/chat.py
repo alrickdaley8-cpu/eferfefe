@@ -40,6 +40,7 @@ LABELS = {
     "model.pt":     ("Base (latest)", "current pretraining checkpoint, completion only"),
     "best.pt":      ("Base (best val)", "pretraining checkpoint with the lowest validation loss"),
     "base_demo.pt": ("Base snapshot", "frozen early pretraining checkpoint"),
+    "released.pt":  ("Released model", "published weights restored from git (ai/release/)"),
 }
 HIDDEN = {"ckpt.pt"}          # optimiser-state checkpoints are not servable models
 
@@ -72,7 +73,7 @@ def list_checkpoints() -> list[dict]:
 
 
 def default_ckpt() -> str:
-    for name in ("sft.pt", "sft_demo.pt", "best.pt", "model.pt"):
+    for name in ("sft.pt", "sft_demo.pt", "released.pt", "best.pt", "model.pt"):
         p = os.path.join(CKPT_DIR, name)
         if os.path.exists(p):
             return p

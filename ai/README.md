@@ -228,6 +228,21 @@ into the standalone app at `/app`, and the landing page embeds the identical wid
 *Talk to it*. Served by `ai.serve` the widget talks to the same origin; opened as a static file it
 detects that no API is reachable, explains how to start one, and accepts `?api=http://host:8000`.
 
+### Keeping the page in step with the code
+
+`index.html` is generated, so it can drift from the code that produced it. Three things stop that:
+
+* **live data** — when a server is reachable the page calls `GET /page-data` and redraws the stat
+  cards, all three loss curves (a JS sparkline mirroring the Python one), the checkpoint table and
+  the sample transcripts every 30 s, then labels itself *live*. The baked-in snapshot is only what
+  you see before the first fetch, or on a static host.
+* **automatic regeneration** — `ai/publish_model.sh` regenerates the page every time weights are
+  published, and the daemon refreshes it every 30 minutes while training runs (`PAGE=0` opts out).
+* **a staleness test** — the page carries a `ui-build <hash>` marker over the embedded chat client;
+  `python -m ai.tests` fails with *"index.html is out of date — run `python ai/make_page.py`"* if
+  `ai/ui.py` changed without the page being rebuilt. (Verified by deliberately corrupting the
+  marker: the test fails, and passes again once restored.)
+
 ### Making the page work everywhere
 
 `index.html` carries the chat client, so it has to cope with three different situations:

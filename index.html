@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- tiny-lm page · ui-build 14a7bbc498c7 · generated 2026-08-19 20:10 UTC · regenerate with: python ai/make_page.py -->
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>tiny-lm — a 5M parameter language model trained from scratch</title>
@@ -173,10 +174,10 @@ retrieval-grounded chain-of-thought reasoning — all trained on <b>2 CPU cores<
   <span class="badge"><b>8192</b> vocab</span>
   <span class="badge"><b>512</b> context</span>
   <span class="badge">RoPE · SwiGLU · RMSNorm · tied embeddings</span>
-  <span class="badge">updated 2026-08-19 19:59 UTC</span>
+  <span class="badge">updated 2026-08-19 20:10 UTC</span>
 </div>
 
-<div class="cards"><div class="stat"><div class="k">parameters</div><div class="v">5,015,808</div><div class="s">4 layers · d=256 · 8 heads · RoPE · SwiGLU</div></div><div class="stat"><div class="k">pretraining</div><div class="v">4.5M / 100M</div><div class="s">tokens of PyPI source text</div></div><div class="stat"><div class="k">val loss</div><div class="v">4.25</div><div class="s">perplexity 70</div></div><div class="stat"><div class="k">knowledge base</div><div class="v">11,922</div><div class="s">packages available to retrieval</div></div><div class="stat"><div class="k">instruction data</div><div class="v">288k examples</div><div class="s">146k QA + 142.5k chain-of-thought</div></div><div class="stat"><div class="k">hardware</div><div class="v">2 vCPU</div><div class="s">no GPU, fp32, ~4,000 tok/s</div></div></div>
+<div class="cards"><div class="stat"><div class="k">parameters</div><div class="v">5,015,808</div><div class="s">4 layers · d=256 · 8 heads · RoPE · SwiGLU</div></div><div class="stat"><div class="k">pretraining</div><div class="v" id="card-tokens">0.0M / 100M</div><div class="s">tokens of PyPI source text</div></div><div class="stat"><div class="k">val loss</div><div class="v" id="card-val">—</div><div class="s"></div></div><div class="stat"><div class="k">knowledge base</div><div class="v">11,922</div><div class="s">packages available to retrieval</div></div><div class="stat"><div class="k">instruction data</div><div class="v">288k examples</div><div class="s">146k QA + 142.5k chain-of-thought</div></div><div class="stat"><div class="k">hardware</div><div class="v">2 vCPU</div><div class="s">no GPU, fp32, ~4,000 tok/s</div></div></div>
 
 <h2>Pipeline</h2>
 <div class="flow">
@@ -192,44 +193,17 @@ retrieval-grounded chain-of-thought reasoning — all trained on <b>2 CPU cores<
 <h2>Training curves</h2>
 <div class="panel">
   <h3>Pretraining loss (EMA)</h3>
-  <svg viewBox="0 0 680 210" class="chart" role="img" aria-label="pretraining loss">
-  <defs><linearGradient id="g5eead4" x1="0" x2="0" y1="0" y2="1">
-    <stop offset="0%" stop-color="#5eead4" stop-opacity=".28"/>
-    <stop offset="100%" stop-color="#5eead4" stop-opacity="0"/></linearGradient></defs>
-  <line x1="34" y1="168.4" x2="666" y2="168.4" class="grid"/><text x="26" y="172.4" class="ylab">3.9</text><line x1="34" y1="122.7" x2="666" y2="122.7" class="grid"/><text x="26" y="126.7" class="ylab">5.4</text><line x1="34" y1="77.1" x2="666" y2="77.1" class="grid"/><text x="26" y="81.1" class="ylab">7.0</text><line x1="34" y1="31.4" x2="666" y2="31.4" class="grid"/><text x="26" y="35.4" class="ylab">8.5</text>
-  <path d="M34.0,34.3 L64.1,60.6 L94.2,87.6 L124.3,104.1 L154.5,114.7 L184.6,125.4 L214.7,132.8 L244.8,136.2 L274.9,142.5 L305.0,142.2 L335.1,148.0 L365.3,149.9 L395.4,151.2 L425.5,152.7 L455.6,156.0 L485.7,156.2 L515.8,159.1 L545.9,159.6 L576.1,160.4 L606.2,160.9 L636.3,164.1 L666.4,165.5 L666.4,176.0 L34.0,176.0 Z" fill="url(#g5eead4)"/>
-  <path d="M34.0,34.3 L64.1,60.6 L94.2,87.6 L124.3,104.1 L154.5,114.7 L184.6,125.4 L214.7,132.8 L244.8,136.2 L274.9,142.5 L305.0,142.2 L335.1,148.0 L365.3,149.9 L395.4,151.2 L425.5,152.7 L455.6,156.0 L485.7,156.2 L515.8,159.1 L545.9,159.6 L576.1,160.4 L606.2,160.9 L636.3,164.1 L666.4,165.5" fill="none" stroke="#5eead4" stroke-width="2" stroke-linejoin="round"/>
-  <text x="34" y="202" class="xlab">0.2M tokens</text>
-  <text x="632" y="202" class="xlab" text-anchor="end">4.5M</text>
-</svg>
+  <div id="curve-pretrain"><p class="dim">not enough data yet</p></div>
   <h3>Validation loss</h3>
-  <svg viewBox="0 0 680 210" class="chart" role="img" aria-label="validation loss">
-  <defs><linearGradient id="g7c9cff" x1="0" x2="0" y1="0" y2="1">
-    <stop offset="0%" stop-color="#7c9cff" stop-opacity=".28"/>
-    <stop offset="100%" stop-color="#7c9cff" stop-opacity="0"/></linearGradient></defs>
-  <line x1="34" y1="168.4" x2="666" y2="168.4" class="grid"/><text x="26" y="172.4" class="ylab">4.2</text><line x1="34" y1="122.7" x2="666" y2="122.7" class="grid"/><text x="26" y="126.7" class="ylab">4.4</text><line x1="34" y1="77.1" x2="666" y2="77.1" class="grid"/><text x="26" y="81.1" class="ylab">4.6</text><line x1="34" y1="31.4" x2="666" y2="31.4" class="grid"/><text x="26" y="35.4" class="ylab">4.8</text>
-  <path d="M34.0,34.3 L666.4,165.5 L666.4,176.0 L34.0,176.0 Z" fill="url(#g7c9cff)"/>
-  <path d="M34.0,34.3 L666.4,165.5" fill="none" stroke="#7c9cff" stroke-width="2" stroke-linejoin="round"/>
-  <text x="34" y="202" class="xlab">2.0M tokens</text>
-  <text x="632" y="202" class="xlab" text-anchor="end">4.1M</text>
-</svg>
-  <h3>Instruction tuning loss</h3><svg viewBox="0 0 680 210" class="chart" role="img" aria-label="sft loss">
-  <defs><linearGradient id="gfbbf24" x1="0" x2="0" y1="0" y2="1">
-    <stop offset="0%" stop-color="#fbbf24" stop-opacity=".28"/>
-    <stop offset="100%" stop-color="#fbbf24" stop-opacity="0"/></linearGradient></defs>
-  <line x1="34" y1="168.4" x2="666" y2="168.4" class="grid"/><text x="26" y="172.4" class="ylab">1.1</text><line x1="34" y1="122.7" x2="666" y2="122.7" class="grid"/><text x="26" y="126.7" class="ylab">2.5</text><line x1="34" y1="77.1" x2="666" y2="77.1" class="grid"/><text x="26" y="81.1" class="ylab">4.0</text><line x1="34" y1="31.4" x2="666" y2="31.4" class="grid"/><text x="26" y="35.4" class="ylab">5.4</text>
-  <path d="M34.0,34.3 L47.2,64.1 L60.3,87.5 L73.5,102.9 L86.7,110.7 L99.9,120.7 L113.0,124.4 L126.2,126.5 L139.4,130.0 L152.6,132.4 L165.8,131.8 L178.9,134.0 L192.1,135.8 L205.3,133.9 L218.5,135.8 L231.6,135.6 L244.8,137.0 L258.0,137.7 L271.1,140.6 L284.3,143.1 L297.5,141.2 L310.7,141.7 L323.8,143.2 L337.0,143.4 L350.2,145.9 L363.4,144.3 L376.5,149.5 L389.7,145.6 L402.9,149.6 L416.1,147.9 L429.2,151.1 L442.4,150.3 L455.6,153.9 L468.8,153.1 L481.9,152.3 L495.1,152.7 L508.3,155.8 L521.5,155.1 L534.6,154.9 L547.8,156.4 L561.0,159.5 L574.2,158.7 L587.4,158.8 L600.5,160.8 L613.7,163.0 L626.9,161.0 L640.0,161.4 L653.2,163.3 L666.4,165.5 L666.4,176.0 L34.0,176.0 Z" fill="url(#gfbbf24)"/>
-  <path d="M34.0,34.3 L47.2,64.1 L60.3,87.5 L73.5,102.9 L86.7,110.7 L99.9,120.7 L113.0,124.4 L126.2,126.5 L139.4,130.0 L152.6,132.4 L165.8,131.8 L178.9,134.0 L192.1,135.8 L205.3,133.9 L218.5,135.8 L231.6,135.6 L244.8,137.0 L258.0,137.7 L271.1,140.6 L284.3,143.1 L297.5,141.2 L310.7,141.7 L323.8,143.2 L337.0,143.4 L350.2,145.9 L363.4,144.3 L376.5,149.5 L389.7,145.6 L402.9,149.6 L416.1,147.9 L429.2,151.1 L442.4,150.3 L455.6,153.9 L468.8,153.1 L481.9,152.3 L495.1,152.7 L508.3,155.8 L521.5,155.1 L534.6,154.9 L547.8,156.4 L561.0,159.5 L574.2,158.7 L587.4,158.8 L600.5,160.8 L613.7,163.0 L626.9,161.0 L640.0,161.4 L653.2,163.3 L666.4,165.5" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linejoin="round"/>
-  <text x="34" y="202" class="xlab">0.2M tokens</text>
-  <text x="632" y="202" class="xlab" text-anchor="end">10.0M</text>
-</svg>
+  <div id="curve-val"><p class="dim">not enough data yet</p></div>
+  <div id="curve-sft"></div>
 </div>
 
 <h2>What it actually does</h2>
 <p>At this size the model cannot memorise the world, so it is trained to do the two things that
 fit in 5M parameters: <b>answer from a context passage retrieved for it</b>, and <b>write its
 reasoning out as tokens</b> before answering. Unanswerable questions are trained to be refused.</p>
-
+<div id="samples">
       <article class="turn">
         <div class="q">What can you do?</div>
         <div class="ctx"><span>retrieved</span>pyvers 0.2.3: A Python library for managing multiple versions of dependencies 🐦 pyvers A Python library for dynamic dispatch based on module versions and backends. What can you do with pyvers? License: MIT. Requires Pyth…</div>
@@ -283,14 +257,15 @@ The file is closed automatically when the block ends.</div>
         
         <div class="a">I do not know that one. I am a 5M parameter model that answers from a knowledge base of 11,922 Python packages plus a calculator — try asking about a package (&quot;what license does black use?&quot;), a comparison (&quot;does fastapi depend on pydantic?&quot;), or some arithmetic.</div>
         <div class="vb fallback">model output rejected as noise — fallback reply</div>
-      </article>
+      </article></div>
 <p class="dim">Transcripts above are generated from the checkpoint that was current when this page
 was built — the pipeline was still training, so treat them as a snapshot, not a final score.</p>
 
 <h2>Checkpoints</h2>
 <div class="panel"><table>
 <thead><tr><th>file</th><th>label</th><th>stage</th><th>step</th><th>tokens seen</th></tr></thead>
-<tbody><tr><td class='mono'>sft.pt</td><td>Chat (instruction tuned)</td><td>sft</td><td class='num'>1,248</td><td class='num'>10.2M</td></tr><tr><td class='mono'>best.pt</td><td>Base (best val)</td><td>pretrain</td><td class='num'>500</td><td class='num'>4.1M</td></tr><tr><td class='mono'>model.pt</td><td>Base (latest)</td><td>pretrain</td><td class='num'>500</td><td class='num'>4.1M</td></tr></tbody></table></div>
+<tbody id="ckbody"><tr><td class='mono'>released.pt</td><td>Released model</td><td>sft</td><td class='num'>1,248</td><td class='num'>10.2M</td></tr></tbody>
+</table></div>
 
 <h2>Run it yourself</h2>
 <pre>git clone https://github.com/alrickdaley8-cpu/eferfefe
@@ -307,6 +282,8 @@ ai/daemon.sh start                            # pretrain -> instruction tune, in
 ai/daemon.sh status                           # progress, loss, throughput, ETA
 python -m ai.chat --think "does fastapi depend on pydantic?"
 python -m ai.serve --port 8000                # streaming chat UI</pre>
+
+<p class="dim" id="freshness">snapshot baked in at build time</p>
 
 <h2 id="talk">Talk to it</h2>
 <p class="dim" id="offline">Looking for a model server… if none is running, start one with
@@ -553,7 +530,69 @@ if(!window.TINYLM_MANUAL_INIT) initChat();
 
 </script>
 <script>
+// Redraw the baked-in snapshot from live data whenever a server is reachable, so the page is
+// current no matter when it was generated.
+function spark(points,color){
+  if(!points||points.length<2) return '<p class="dim">not enough data yet</p>';
+  const w=680,h=210,pad=34;
+  const xs=points.map(p=>p[0]), ys=points.map(p=>p[1]);
+  const x0=Math.min(...xs),x1=Math.max(...xs);
+  let y0=Math.min(...ys),y1=Math.max(...ys);
+  const span=(y1-y0)||1; y0-=span*0.08; y1+=span*0.08;
+  const sx=x=>pad+(x-x0)/((x1-x0)||1)*(w-pad*1.4);
+  const sy=y=>h-pad-(y-y0)/((y1-y0)||1)*(h-pad*1.7);
+  const d=points.map((p,i)=>`${i?'L':'M'}${sx(p[0]).toFixed(1)},${sy(p[1]).toFixed(1)}`).join(' ');
+  const area=`${d} L${sx(xs[xs.length-1]).toFixed(1)},${h-pad} L${sx(xs[0]).toFixed(1)},${h-pad} Z`;
+  const grid=[0.05,0.35,0.65,0.95].map(f=>{
+    const y=y0+(y1-y0)*f;
+    return `<line x1="${pad}" y1="${sy(y).toFixed(1)}" x2="${w-pad*0.4}" y2="${sy(y).toFixed(1)}" class="grid"/>`
+         + `<text x="${pad-8}" y="${(sy(y)+4).toFixed(1)}" class="ylab">${y.toFixed(1)}</text>`;
+  }).join('');
+  const gid='g'+color.slice(1);
+  return `<svg viewBox="0 0 ${w} ${h}" class="chart"><defs>
+    <linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1">
+    <stop offset="0%" stop-color="${color}" stop-opacity=".28"/>
+    <stop offset="100%" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
+    ${grid}<path d="${area}" fill="url(#${gid})"/>
+    <path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>
+    <text x="${pad}" y="${h-8}" class="xlab">${(xs[0]/1e6).toFixed(1)}M tokens</text>
+    <text x="${w-pad*1.4}" y="${h-8}" class="xlab" text-anchor="end">${(xs[xs.length-1]/1e6).toFixed(1)}M</text></svg>`;
+}
+const VB={ok:"verified against the knowledge base",
+          corrected:"corrected from the knowledge base",
+          fallback:"model output rejected as noise — fallback reply",
+          unchecked:"unverified — raw model output, nothing to check it against"};
+async function refreshPage(){
+  let d; try{ d=await (await fetch(API+"/page-data")).json(); }catch(e){ return; }
+  const st=d.stats||{};
+  const set=(id,v)=>{const el=document.getElementById(id); if(el&&v!=null) el.textContent=v;};
+  set("card-tokens",`${(st.tokens/1e6).toFixed(1)}M / ${(st.total_tokens/1e6).toFixed(0)}M`);
+  set("card-val", st.val_loss!=null ? st.val_loss.toFixed(2) : "—");
+  const curves=d.curves||{};
+  const cp=document.getElementById("curve-pretrain"); if(cp) cp.innerHTML=spark(curves.pretrain,"#5eead4");
+  const cv=document.getElementById("curve-val"); if(cv) cv.innerHTML=spark(curves.val,"#7c9cff");
+  const cs=document.getElementById("curve-sft");
+  if(cs && curves.sft && curves.sft.length>1)
+    cs.innerHTML="<h3>Instruction tuning loss</h3>"+spark(curves.sft,"#fbbf24");
+  const tb=document.getElementById("ckbody");
+  if(tb && d.checkpoints && d.checkpoints.length)
+    tb.innerHTML=d.checkpoints.map(c=>`<tr><td class="mono">${c.file}</td><td>${c.label}</td>`+
+      `<td>${c.stage}</td><td class="num">${c.step.toLocaleString()}</td>`+
+      `<td class="num">${(c.tokens/1e6).toFixed(1)}M</td></tr>`).join("");
+  const sec=document.getElementById("samples");
+  if(sec && d.samples && d.samples.length)
+    sec.innerHTML=d.samples.map(s=>`<article class="turn"><div class="q">${s.q}</div>`+
+      (s.context?`<div class="ctx"><span>retrieved</span>${s.context}…</div>`:"")+
+      (s.reasoning?`<div class="think"><span>thinking</span>${s.reasoning}</div>`:"")+
+      `<div class="a">${s.a||"(empty)"}</div>`+
+      `<div class="vb ${s.verification||"unchecked"}">${VB[s.verification||"unchecked"]}</div>`+
+      `</article>`).join("");
+  const f=document.getElementById("freshness");
+  if(f) f.textContent="live — figures refreshed from the running server "+
+    new Date().toLocaleTimeString();
+}
 initChat(found=>{
+  if(found){ refreshPage(); setInterval(refreshPage,30000); }
   document.getElementById("chatapp").hidden=!found;
   document.getElementById("offline").hidden=found;
   if(found && API) document.getElementById("apinote").textContent="connected to "+(API||"this page");

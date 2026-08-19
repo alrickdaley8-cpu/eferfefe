@@ -32,6 +32,8 @@ json.dump({"source": os.path.basename(sys.argv[1]), "stage": ck.get("stage", "pr
           open(sys.argv[2], "w"), indent=2)
 PYEOF
     echo "published $(basename "$src") -> ai/release/model.pt ($(du -h "$REL/model.pt" | cut -f1))"
+    PYTHONPATH="$ROOT" "$PY" "$ROOT/ai/make_page.py" --no-samples >/dev/null 2>&1 \
+      && echo "regenerated index.html"
     ;;
   restore)
     [[ -f "$REL/model.pt" ]] || { echo "nothing published yet"; exit 0; }

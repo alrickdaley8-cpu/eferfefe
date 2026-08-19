@@ -15,6 +15,8 @@ import json
 import os
 import time
 
+import hashlib
+
 from ai.ui import CSS as CHAT_CSS
 from ai.ui import JS as CHAT_JS
 from ai.ui import MAIN as CHAT_MAIN
@@ -47,6 +49,48 @@ def read_jsonl(path: str) -> list[dict]:
             except Exception:
                 pass
     return out
+
+
+def ui_hash() -> str:
+    """Fingerprint of the embedded chat client — lets a test catch a stale index.html."""
+    blob = (CHAT_CSS + CHAT_MAIN + CHAT_JS).encode()
+    return hashlib.sha256(blob).hexdigest()[:12]
+
+
+def page_data(max_points: int = 120) -> dict:
+    """Everything the page shows, as JSON — served live by ai.serve at /page-data."""
+    d = collect()
+
+    def thin(points):
+        if len(points) <= max_points:
+            return points
+        step = len(points) / max_points
+        return [points[int(i * step)] for i in range(max_points)]
+
+    samples = []
+    if os.path.exists(SAMPLES):
+        try:
+            samples = json.load(open(SAMPLES))
+        except Exception:
+            samples = []
+    st = d["status"]
+    tokens = st.get("tokens", 0)
+    val = [r["val_loss"] for r in d["pre"] if "val_loss" in r]
+    return {
+        "curves": {
+            "pretrain": thin([[r["tok"], r["ema"]] for r in d["pre"] if "ema" in r and "tok" in r]),
+            "val": thin([[r["step"] * 8192, r["val_loss"]] for r in d["pre"] if "val_loss" in r]),
+            "sft": thin([[r["tok"], r["ema"]] for r in d["sft"] if "ema" in r and "tok" in r]),
+        },
+        "status": st,
+        "kb": d["kb"],
+        "checkpoints": d["ckpts"],
+        "samples": samples,
+        "stats": {"tokens": tokens, "total_tokens": st.get("total_tokens", 100_000_000),
+                  "val_loss": val[-1] if val else None, "stage": st.get("stage"),
+                  "step": st.get("step", 0)},
+        "generated_at": time.time(),
+    }
 
 
 def collect() -> dict:
@@ -128,15 +172,17 @@ def render(d: dict, samples: list[dict]) -> str:
     total = st.get("total_tokens", 100_000_000)
     last_val = val_pts[-1][1] if val_pts else None
 
-    def card(k, v, sub=""):
-        return (f'<div class="stat"><div class="k">{k}</div><div class="v">{v}</div>'
+    def card(k, v, sub="", cid=""):
+        idattr = f' id="card-{cid}"' if cid else ""
+        return (f'<div class="stat"><div class="k">{k}</div><div class="v"{idattr}>{v}</div>'
                 f'<div class="s">{sub}</div></div>')
 
     stat_cards = "".join([
         card("parameters", "5,015,808", "4 layers · d=256 · 8 heads · RoPE · SwiGLU"),
-        card("pretraining", f"{tokens/1e6:.1f}M / {total/1e6:.0f}M", "tokens of PyPI source text"),
+        card("pretraining", f"{tokens/1e6:.1f}M / {total/1e6:.0f}M", "tokens of PyPI source text",
+             cid="tokens"),
         card("val loss", f"{last_val:.2f}" if last_val else "—",
-             f"perplexity {2.718281828**last_val:.0f}" if last_val else ""),
+             f"perplexity {2.718281828**last_val:.0f}" if last_val else "", cid="val"),
         card("knowledge base", f"{kb:,}", "packages available to retrieval"),
         card("instruction data", "288k examples", "146k QA + 142.5k chain-of-thought"),
         card("hardware", "2 vCPU", "no GPU, fp32, ~4,000 tok/s"),
@@ -162,7 +208,9 @@ def render(d: dict, samples: list[dict]) -> str:
       </article>""" for s in samples)
 
     ts = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())
+    build = ui_hash()
     return f"""<!doctype html>
+<!-- tiny-lm page · ui-build {build} · generated {ts} · regenerate with: python ai/make_page.py -->
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>tiny-lm — a 5M parameter language model trained from scratch</title>
@@ -263,24 +311,25 @@ retrieval-grounded chain-of-thought reasoning — all trained on <b>2 CPU cores<
 <h2>Training curves</h2>
 <div class="panel">
   <h3>Pretraining loss (EMA)</h3>
-  {sparkline(train_pts, label="pretraining loss")}
+  <div id="curve-pretrain">{sparkline(train_pts, label="pretraining loss")}</div>
   <h3>Validation loss</h3>
-  {sparkline(val_pts, color="#7c9cff", label="validation loss")}
-  {"<h3>Instruction tuning loss</h3>" + sparkline(sft_pts, color="#fbbf24", label="sft loss") if sft_pts else ""}
+  <div id="curve-val">{sparkline(val_pts, color="#7c9cff", label="validation loss")}</div>
+  <div id="curve-sft">{"<h3>Instruction tuning loss</h3>" + sparkline(sft_pts, color="#fbbf24", label="sft loss") if sft_pts else ""}</div>
 </div>
 
 <h2>What it actually does</h2>
 <p>At this size the model cannot memorise the world, so it is trained to do the two things that
 fit in 5M parameters: <b>answer from a context passage retrieved for it</b>, and <b>write its
 reasoning out as tokens</b> before answering. Unanswerable questions are trained to be refused.</p>
-{sample_html}
+<div id="samples">{sample_html}</div>
 <p class="dim">Transcripts above are generated from the checkpoint that was current when this page
 was built — the pipeline was still training, so treat them as a snapshot, not a final score.</p>
 
 <h2>Checkpoints</h2>
 <div class="panel"><table>
 <thead><tr><th>file</th><th>label</th><th>stage</th><th>step</th><th>tokens seen</th></tr></thead>
-<tbody>{ck_rows or '<tr><td colspan="5" class="dim">none yet</td></tr>'}</tbody></table></div>
+<tbody id="ckbody">{ck_rows or '<tr><td colspan="5" class="dim">none yet</td></tr>'}</tbody>
+</table></div>
 
 <h2>Run it yourself</h2>
 <pre>git clone https://github.com/alrickdaley8-cpu/eferfefe
@@ -297,6 +346,8 @@ ai/daemon.sh start                            # pretrain -> instruction tune, in
 ai/daemon.sh status                           # progress, loss, throughput, ETA
 python -m ai.chat --think "does fastapi depend on pydantic?"
 python -m ai.serve --port 8000                # streaming chat UI</pre>
+
+<p class="dim" id="freshness">snapshot baked in at build time</p>
 
 <h2 id="talk">Talk to it</h2>
 <p class="dim" id="offline">Looking for a model server… if none is running, start one with
@@ -315,7 +366,69 @@ python -m ai.serve --port 8000                # streaming chat UI</pre>
 {CHAT_JS}
 </script>
 <script>
+// Redraw the baked-in snapshot from live data whenever a server is reachable, so the page is
+// current no matter when it was generated.
+function spark(points,color){{
+  if(!points||points.length<2) return '<p class="dim">not enough data yet</p>';
+  const w=680,h=210,pad=34;
+  const xs=points.map(p=>p[0]), ys=points.map(p=>p[1]);
+  const x0=Math.min(...xs),x1=Math.max(...xs);
+  let y0=Math.min(...ys),y1=Math.max(...ys);
+  const span=(y1-y0)||1; y0-=span*0.08; y1+=span*0.08;
+  const sx=x=>pad+(x-x0)/((x1-x0)||1)*(w-pad*1.4);
+  const sy=y=>h-pad-(y-y0)/((y1-y0)||1)*(h-pad*1.7);
+  const d=points.map((p,i)=>`${{i?'L':'M'}}${{sx(p[0]).toFixed(1)}},${{sy(p[1]).toFixed(1)}}`).join(' ');
+  const area=`${{d}} L${{sx(xs[xs.length-1]).toFixed(1)}},${{h-pad}} L${{sx(xs[0]).toFixed(1)}},${{h-pad}} Z`;
+  const grid=[0.05,0.35,0.65,0.95].map(f=>{{
+    const y=y0+(y1-y0)*f;
+    return `<line x1="${{pad}}" y1="${{sy(y).toFixed(1)}}" x2="${{w-pad*0.4}}" y2="${{sy(y).toFixed(1)}}" class="grid"/>`
+         + `<text x="${{pad-8}}" y="${{(sy(y)+4).toFixed(1)}}" class="ylab">${{y.toFixed(1)}}</text>`;
+  }}).join('');
+  const gid='g'+color.slice(1);
+  return `<svg viewBox="0 0 ${{w}} ${{h}}" class="chart"><defs>
+    <linearGradient id="${{gid}}" x1="0" x2="0" y1="0" y2="1">
+    <stop offset="0%" stop-color="${{color}}" stop-opacity=".28"/>
+    <stop offset="100%" stop-color="${{color}}" stop-opacity="0"/></linearGradient></defs>
+    ${{grid}}<path d="${{area}}" fill="url(#${{gid}})"/>
+    <path d="${{d}}" fill="none" stroke="${{color}}" stroke-width="2" stroke-linejoin="round"/>
+    <text x="${{pad}}" y="${{h-8}}" class="xlab">${{(xs[0]/1e6).toFixed(1)}}M tokens</text>
+    <text x="${{w-pad*1.4}}" y="${{h-8}}" class="xlab" text-anchor="end">${{(xs[xs.length-1]/1e6).toFixed(1)}}M</text></svg>`;
+}}
+const VB={{ok:"verified against the knowledge base",
+          corrected:"corrected from the knowledge base",
+          fallback:"model output rejected as noise — fallback reply",
+          unchecked:"unverified — raw model output, nothing to check it against"}};
+async function refreshPage(){{
+  let d; try{{ d=await (await fetch(API+"/page-data")).json(); }}catch(e){{ return; }}
+  const st=d.stats||{{}};
+  const set=(id,v)=>{{const el=document.getElementById(id); if(el&&v!=null) el.textContent=v;}};
+  set("card-tokens",`${{(st.tokens/1e6).toFixed(1)}}M / ${{(st.total_tokens/1e6).toFixed(0)}}M`);
+  set("card-val", st.val_loss!=null ? st.val_loss.toFixed(2) : "—");
+  const curves=d.curves||{{}};
+  const cp=document.getElementById("curve-pretrain"); if(cp) cp.innerHTML=spark(curves.pretrain,"#5eead4");
+  const cv=document.getElementById("curve-val"); if(cv) cv.innerHTML=spark(curves.val,"#7c9cff");
+  const cs=document.getElementById("curve-sft");
+  if(cs && curves.sft && curves.sft.length>1)
+    cs.innerHTML="<h3>Instruction tuning loss</h3>"+spark(curves.sft,"#fbbf24");
+  const tb=document.getElementById("ckbody");
+  if(tb && d.checkpoints && d.checkpoints.length)
+    tb.innerHTML=d.checkpoints.map(c=>`<tr><td class="mono">${{c.file}}</td><td>${{c.label}}</td>`+
+      `<td>${{c.stage}}</td><td class="num">${{c.step.toLocaleString()}}</td>`+
+      `<td class="num">${{(c.tokens/1e6).toFixed(1)}}M</td></tr>`).join("");
+  const sec=document.getElementById("samples");
+  if(sec && d.samples && d.samples.length)
+    sec.innerHTML=d.samples.map(s=>`<article class="turn"><div class="q">${{s.q}}</div>`+
+      (s.context?`<div class="ctx"><span>retrieved</span>${{s.context}}…</div>`:"")+
+      (s.reasoning?`<div class="think"><span>thinking</span>${{s.reasoning}}</div>`:"")+
+      `<div class="a">${{s.a||"(empty)"}}</div>`+
+      `<div class="vb ${{s.verification||"unchecked"}}">${{VB[s.verification||"unchecked"]}}</div>`+
+      `</article>`).join("");
+  const f=document.getElementById("freshness");
+  if(f) f.textContent="live — figures refreshed from the running server "+
+    new Date().toLocaleTimeString();
+}}
 initChat(found=>{{
+  if(found){{ refreshPage(); setInterval(refreshPage,30000); }}
   document.getElementById("chatapp").hidden=!found;
   document.getElementById("offline").hidden=found;
   if(found && API) document.getElementById("apinote").textContent="connected to "+(API||"this page");

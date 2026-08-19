@@ -51,8 +51,18 @@ serve_watchdog() {
   done
 }
 
+page_watchdog() {
+  # keep index.html's baked-in snapshot close to reality even for static hosting
+  while true; do
+    sleep 1800
+    "$PY" "$ROOT/ai/make_page.py" --no-samples >/dev/null 2>&1 \
+      && echo "[daemon] refreshed index.html $(date -Is)"
+  done
+}
+
 supervise() {
   echo "[daemon] started pid $$ at $(date -Is)"
+  [[ "${PAGE:-1}" == "1" ]] && page_watchdog &
   [[ "${SERVE:-1}" == "1" ]] && serve_watchdog &
   local backoff=5
   while true; do
