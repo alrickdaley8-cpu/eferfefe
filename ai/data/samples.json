@@ -9,7 +9,7 @@
  },
  {
   "q": "Does fastapi depend on pydantic?",
-  "reasoning": "dependencies listed: letter, email-validator, pydantic, pydantic-core, pydantic, pydantic, pydantic, pydantic, pydantic, tzdata, tzdata.\nlooking for pydantic-validator: it is in the list.",
+  "reasoning": "dependencies listed: letter, email-validator, pydantic, pydantic, pydantic, pydantic, pydantic, pydantic, pydantic, typing-extensions.\nlooking for pydantic-validator: it is in the list.",
   "a": "Yes, fastapi depends on pydantic-validator.",
   "context": "(1) fastapi 0.141.1: FastAPI framework, high performance, easy to learn, fast to code, ready for production FastAPI framework, high performance, easy to learn, fast to code, ready for production Documentation : [https://",
   "checkpoint": "sft_demo.pt",
@@ -17,8 +17,8 @@
  },
  {
   "q": "What is 3471 + 2856?",
-  "reasoning": "units: 2 + 0 = 2, write 2\ntens: 2 + 2 = 2, write 2\nhundreds: 2 + 2 = 2, write 2\nthousands: 2 + 2 = 2, write 2\nreading the digits back: 27130",
-  "a": "7111 + 27 = 27110",
+  "reasoning": "units: 2 + 0 = 2, write 2\ntens: 2 + 2 = 2, write 2\nhundreds: 2 + 2 = 2, write 2\nthousands: 2 + 2 = 2, write 2\nreading the digits back: 2237",
+  "a": "713 + 277 = 2237",
   "context": "",
   "checkpoint": "sft_demo.pt",
   "step": 355

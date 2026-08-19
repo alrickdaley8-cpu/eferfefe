@@ -172,6 +172,8 @@ def main() -> None:
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--threads", type=int, default=1)
     args = ap.parse_args()
+    # one thread is measurably fastest for single-stream decoding of a model this small
+    os.environ.setdefault("LM_THREADS", str(args.threads))
     torch.set_num_threads(args.threads)
     get_assistant()
     print(f"[serve] http://0.0.0.0:{args.port}", flush=True)

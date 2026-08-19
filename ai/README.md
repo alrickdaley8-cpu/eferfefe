@@ -201,6 +201,32 @@ CORS-enabled.
 The same trace is available in the terminal with `python -m ai.chat --think "..."`, and
 `python -m ai.chat --list` prints the checkpoints.
 
+## Inference speed
+
+Generation used to re-run the whole prompt through the model for **every** token — 373 prompt
+tokens re-encoded 70 times to write one answer. The decoder now keeps a **KV cache**:
+
+* `Attention.forward` takes `past=(k, v)`, applies RoPE at the right absolute offset, concatenates
+  the cached keys/values and switches to non-causal attention for single-token queries
+* `GPT.forward(..., past=, use_cache=, last_only=)` threads the per-layer cache through and, during
+  generation, projects only the final position to logits (skipping 8,192 × 511 wasted logits)
+* the prompt is encoded once as a prefill, then each new token costs one 1-token forward pass
+* generation runs under `torch.inference_mode()`
+
+Measured on the same question and checkpoint (2 vCPU, while pretraining was running):
+
+| configuration | throughput |
+|---|---|
+| before (full re-forward, 1 thread) | ~23 tok/s |
+| **KV cache, 1 thread** | **134–187 tok/s** |
+| KV cache, 2 threads | 75 tok/s |
+| KV cache + dynamic int8 | 42 tok/s |
+
+So the answer to "faster" was the cache, not more threads or quantisation — for matmuls this small
+the extra thread sync and int8 pack/unpack cost more than they save, which is why inference defaults
+to a single thread (`LM_THREADS`, or `--threads`). `LM_QUANTIZE=1` still exists if you want to try
+int8 on different hardware. A full reasoning answer now takes **~0.4 s end to end** instead of ~3 s.
+
 ## Running it in the background
 
 Training is managed by a detached supervisor (`setsid` + `nohup`), so it is independent of any

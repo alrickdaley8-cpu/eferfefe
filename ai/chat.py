@@ -90,13 +90,22 @@ def shared_retriever() -> Retriever:
 
 
 class Assistant:
-    def __init__(self, ckpt: str | None = None, threads: int | None = None):
-        torch.set_num_threads(threads or (os.cpu_count() or 2))
+    def __init__(self, ckpt: str | None = None, threads: int | None = None,
+                 quantize: bool | None = None):
+        torch.set_num_threads(threads or int(os.environ.get("LM_THREADS", os.cpu_count() or 2)))
         self.path = ckpt or default_ckpt()
         ck = torch.load(self.path, map_location="cpu", weights_only=False)
         self.model = GPT(GPTConfig(**ck["cfg"]))
         self.model.load_state_dict(ck["model"])
         self.model.eval()
+        if quantize is None:
+            quantize = os.environ.get("LM_QUANTIZE", "0") == "1"
+        self.quantized = False
+        if quantize:
+            # dynamic int8 on the linear layers: ~1.5-2x faster matmuls on CPU
+            self.model = torch.ao.quantization.quantize_dynamic(
+                self.model, {torch.nn.Linear}, dtype=torch.qint8)
+            self.quantized = True
         self.step = ck.get("step", 0)
         self.stage = ck.get("stage", "pretrain")
         self.tok = Tokenizer.from_file(os.path.join(DATA, "tokenizer.json"))
@@ -134,7 +143,7 @@ class Assistant:
         return prompt, ctx, candidates
 
     # ------------------------------------------------------------------ generation
-    @torch.no_grad()
+    @torch.inference_mode()
     def stream(self, question: str, max_tokens: int = 160, temperature: float = 0.7,
                top_k: int = 40, top_p: float = 0.9, use_context: bool = True,
                chat_template: bool = True) -> Iterator[dict]:
@@ -165,12 +174,18 @@ class Assistant:
                "tokens": len(ids), "budget": max_tokens}
 
         x = torch.tensor([ids], dtype=torch.long)
+        cache = None                # KV cache: the prompt is encoded once, then one token a step
         out_ids: list[int] = []
         channel = "answer"          # flips to "think" inside a <think> … </think> block
         pending = ""
+        tail = ""                   # last few characters, for stop-sequence checks
         t_gen = time.time()
         for i in range(max_tokens):
-            logits, _ = self.model(x[:, -self.model.cfg.block_size:])
+            if cache is None:
+                logits, _, cache = self.model(x, use_cache=True, last_only=True)
+            else:
+                logits, _, cache = self.model(x[:, -1:], past=cache, use_cache=True,
+                                              last_only=True)
             logits = logits[0, -1, :] / max(temperature, 1e-5)
             probs_full = F.softmax(logits, dim=-1)
             topv, topi = torch.topk(probs_full, 5)
@@ -192,9 +207,13 @@ class Assistant:
                 break
             out_ids.append(tid)
             x = torch.cat([x, nxt.view(1, 1)], dim=1)
+            if x.size(1) >= self.model.cfg.block_size:
+                break                                   # 512-token window is full
             alts = [{"token": self.tok.decode([int(t)], skip_special_tokens=False),
                      "p": round(float(p), 3)} for p, t in zip(topv, topi)]
-            pending += self.tok.decode([tid], skip_special_tokens=False)
+            piece = self.tok.decode([tid], skip_special_tokens=False)
+            pending += piece
+            tail = (tail + piece)[-24:]
 
             # Split the stream into a reasoning channel and an answer channel, without ever
             # leaking a partially decoded "<think>" tag to the client.
@@ -224,8 +243,7 @@ class Assistant:
                 yield {"type": "token", "text": safe, "channel": channel, "i": i,
                        "confidence": round(float(probs_full[tid]), 3),
                        "alternatives": alts}
-            text_so_far = self.tok.decode(out_ids, skip_special_tokens=False)
-            if "### Question" in text_so_far or "<|endoftext|>" in text_so_far:
+            if "### Question" in tail or "<|endoftext|>" in tail:
                 break
 
         raw = self.tok.decode(out_ids, skip_special_tokens=False)

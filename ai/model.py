@@ -49,10 +49,10 @@ def build_rope_cache(seq_len: int, head_dim: int, theta: float, device=None):
     return torch.cos(freqs), torch.sin(freqs)
 
 
-def apply_rope(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> torch.Tensor:
-    # x: (B, nh, T, hd)
+def apply_rope(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, offset: int = 0) -> torch.Tensor:
+    # x: (B, nh, T, hd); `offset` is the absolute position of the first token (KV-cache decoding)
     T = x.size(-2)
-    cos, sin = cos[:T].to(x.dtype), sin[:T].to(x.dtype)
+    cos, sin = cos[offset:offset + T].to(x.dtype), sin[offset:offset + T].to(x.dtype)
     x1, x2 = x[..., 0::2], x[..., 1::2]
     o1 = x1 * cos - x2 * sin
     o2 = x1 * sin + x2 * cos
@@ -69,18 +69,24 @@ class Attention(nn.Module):
         self.proj = nn.Linear(cfg.n_embd, cfg.n_embd, bias=False)
         self.dropout = cfg.dropout
 
-    def forward(self, x, cos, sin):
+    def forward(self, x, cos, sin, past=None, use_cache=False):
         B, T, C = x.shape
+        offset = past[0].size(-2) if past is not None else 0
         q, k, v = self.qkv(x).split(C, dim=2)
         q = q.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
         k = k.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
         v = v.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
-        q, k = apply_rope(q, cos, sin), apply_rope(k, cos, sin)
+        q = apply_rope(q, cos, sin, offset)
+        k = apply_rope(k, cos, sin, offset)
+        if past is not None:                      # prepend the cached keys/values
+            k = torch.cat((past[0], k), dim=-2)
+            v = torch.cat((past[1], v), dim=-2)
         y = F.scaled_dot_product_attention(
-            q, k, v, is_causal=True, dropout_p=self.dropout if self.training else 0.0
+            q, k, v, is_causal=(T > 1),           # a single query token attends to everything
+            dropout_p=self.dropout if self.training else 0.0,
         )
         y = y.transpose(1, 2).contiguous().view(B, T, C)
-        return self.proj(y)
+        return self.proj(y), ((k, v) if use_cache else None)
 
 
 class MLP(nn.Module):
@@ -102,10 +108,11 @@ class Block(nn.Module):
         self.norm2 = RMSNorm(cfg.n_embd)
         self.mlp = MLP(cfg)
 
-    def forward(self, x, cos, sin):
-        x = x + self.attn(self.norm1(x), cos, sin)
+    def forward(self, x, cos, sin, past=None, use_cache=False):
+        h, kv = self.attn(self.norm1(x), cos, sin, past, use_cache)
+        x = x + h
         x = x + self.mlp(self.norm2(x))
-        return x
+        return x, kv
 
 
 class GPT(nn.Module):
@@ -139,26 +146,41 @@ class GPT(nn.Module):
             n -= self.tok_emb.weight.numel()
         return n
 
-    def forward(self, idx: torch.Tensor, targets: torch.Tensor | None = None):
+    def forward(self, idx: torch.Tensor, targets: torch.Tensor | None = None,
+                past: list | None = None, use_cache: bool = False, last_only: bool = False):
+        """`past` is a list of per-layer (k, v) tensors; pass `use_cache=True` to get a new one."""
         B, T = idx.shape
-        assert T <= self.cfg.block_size, f"sequence length {T} > block size {self.cfg.block_size}"
+        offset = past[0][0].size(-2) if past else 0
+        assert T + offset <= self.cfg.block_size, \
+            f"sequence length {T + offset} > block size {self.cfg.block_size}"
         x = self.tok_emb(idx)
         cos, sin = self.rope_cos, self.rope_sin
-        for blk in self.blocks:
-            x = blk(x, cos, sin)
+        new_cache = [] if use_cache else None
+        for i, blk in enumerate(self.blocks):
+            x, kv = blk(x, cos, sin, past[i] if past else None, use_cache)
+            if use_cache:
+                new_cache.append(kv)
         x = self.norm_f(x)
+        if last_only:                     # generation only needs the final position's logits
+            x = x[:, -1:, :]
         logits = self.lm_head(x)
         loss = None
         if targets is not None:
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.reshape(-1))
+        if use_cache:
+            return logits, loss, new_cache
         return logits, loss
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def generate(self, idx, max_new_tokens=200, temperature=0.8, top_k=40, top_p=0.95, eot_id=None):
         self.eval()
-        for _ in range(max_new_tokens):
-            idx_cond = idx[:, -self.cfg.block_size:]
-            logits, _ = self(idx_cond)
+        cache = None
+        for step in range(max_new_tokens):
+            if cache is None:
+                logits, _, cache = self(idx[:, -self.cfg.block_size:], use_cache=True,
+                                        last_only=True)
+            else:
+                logits, _, cache = self(idx[:, -1:], past=cache, use_cache=True, last_only=True)
             logits = logits[:, -1, :] / max(temperature, 1e-5)
             if top_k:
                 v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
