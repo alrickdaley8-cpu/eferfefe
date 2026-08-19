@@ -11,6 +11,8 @@ ai/
 ├── model.py            # Llama-style decoder: RMSNorm, RoPE, SwiGLU, tied embeddings
 ├── train.py            # AdamW + cosine schedule, resumable checkpoints
 ├── sample.py           # text generation CLI
+├── daemon.sh           # background supervisor: start/stop/status/logs, auto-restart
+├── status.py           # progress, loss, throughput, ETA of the background run
 └── serve.py            # tiny web playground (stdlib http.server)
 ```
 
@@ -66,7 +68,7 @@ python -m venv .venv && .venv/bin/pip install torch numpy tokenizers requests
 python ai/build_corpus.py --target-mb 450 --workers 24     # ~2 min, 470 MB
 python ai/train_tokenizer.py --vocab-size 8192             # ~40 s
 python ai/prepare_data.py --max-tokens 100000000           # ~95 s
-python -m ai.train --total-tokens 100000000                # the run itself
+ai/daemon.sh start                                         # runs everything in the background
 python -m ai.sample --prompt "# file: README.md" --tokens 200
 python -m ai.serve --port 8000                             # web playground
 ```
@@ -124,6 +126,41 @@ question. What it can realistically do after the full run: reply in the right fo
 for a described task, handle small arithmetic/string tasks, and refuse when the context is empty.
 Anything outside the knowledge base is a coin flip at best, which is exactly why the refusal
 behaviour is trained in.
+
+## Running it in the background
+
+Training is managed by a detached supervisor (`setsid` + `nohup`), so it is independent of any
+shell, terminal or agent session:
+
+```bash
+ai/daemon.sh start      # detach and run the whole pipeline: pretrain -> instruction tuning
+ai/daemon.sh status     # progress bar, loss, throughput, ETA
+ai/daemon.sh logs       # follow the log
+ai/daemon.sh stop       # graceful: the trainer checkpoints, then exits
+ai/daemon.sh restart
+python -m ai.status --watch   # same status, refreshing every 30s
+```
+
+What the supervisor guarantees:
+
+* **crash-proof** — if a stage dies (it was OOM-killed once when a data job ran alongside it),
+  the daemon restarts it from the last checkpoint with exponential backoff (5s → 5min cap)
+* **stop-proof** — SIGTERM/SIGINT are caught by the trainers, which checkpoint and exit 0;
+  `stop` then `start` resumes at the exact step it left off
+* **stage tracking** — `pretrain.done` / `sft.done` marker files mean a finished stage is never
+  re-run, and the daemon walks pretrain → SFT → idle on its own
+
+Trainer upgrades that make this safe:
+
+| upgrade | effect |
+|---|---|
+| exact resume | step, optimiser state **and** the data-sampling RNG are checkpointed |
+| best-checkpoint | `best.pt` tracks the lowest validation loss seen |
+| heartbeat | `status.json` (stage/step/tokens/loss/tok-per-s/ETA) every log interval |
+| mid-training mix | last 20% of pretraining blends in 15% instruction batches, so the base already knows the chat format before SFT |
+| signal handling | clean checkpointed shutdown instead of losing up to 250 steps |
+| vectorised batching | one fancy-index gather per batch instead of a Python loop; denormals flushed |
+| SFT parity | the fine-tune stage has the same resume, status, signal and marker behaviour |
 
 ## Training curve
 

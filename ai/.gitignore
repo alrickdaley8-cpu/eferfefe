@@ -1,6 +1,8 @@
-data/corpus/
+__pycache__/
+checkpoints/
 data/*.bin
 data/*.npy
-checkpoints/
-__pycache__/
+data/corpus/
 data/qa/sft.jsonl
+data/qa/sft_mask.bin
+data/qa/sft_tokens.bin

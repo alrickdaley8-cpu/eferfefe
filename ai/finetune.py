@@ -19,6 +19,8 @@ import argparse
 import json
 import math
 import os
+import signal
+import sys
 import time
 
 import numpy as np
@@ -35,6 +37,23 @@ CKPT_DIR = os.path.join(ROOT, "ai", "checkpoints")
 Q_HEAD, A_HEAD = "### Question:\n", "\n\n### Answer:\n"
 IGNORE = -100
 
+_stop = {"flag": False}
+
+
+def _handle_signal(signum, frame):  # noqa: ARG001
+    _stop["flag"] = True
+    print(f"[sft] signal {signum} received — will checkpoint and exit", flush=True)
+
+
+def write_status(**kw) -> None:
+    from ai.train import write_status as _ws
+    _ws(**kw)
+
+
+def mark_done(stage: str) -> None:
+    from ai.train import mark_done as _md
+    _md(stage)
+
 
 def format_prompt(question: str) -> str:
     return f"{Q_HEAD}{question}{A_HEAD}"
@@ -43,12 +62,24 @@ def format_prompt(question: str) -> str:
 def pack(tokenizer: Tokenizer, path: str, tok_bin: str, mask_bin: str, max_len: int = 480) -> None:
     """Tokenize sft.jsonl into a flat uint16 stream + uint8 answer mask."""
     eot = tokenizer.token_to_id("<|endoftext|>")
-    rows = [json.loads(l) for l in open(path)]
     toks, masks = [], []
     B = 2000
+    n_done = 0
+
+    def chunks():
+        """Stream the jsonl in batches — never hold the whole 65 MB file in memory."""
+        buf = []
+        with open(path) as fh:
+            for line in fh:
+                buf.append(json.loads(line))
+                if len(buf) >= B:
+                    yield buf
+                    buf = []
+        if buf:
+            yield buf
+
     with open(tok_bin, "wb") as ft, open(mask_bin, "wb") as fm:
-        for i in range(0, len(rows), B):
-            chunk = rows[i: i + B]
+        for chunk in chunks():
             pe = tokenizer.encode_batch([format_prompt(r["prompt"]) for r in chunk])
             re_ = tokenizer.encode_batch([r["response"] for r in chunk])
             for p, a in zip(pe, re_):
@@ -61,8 +92,9 @@ def pack(tokenizer: Tokenizer, path: str, tok_bin: str, mask_bin: str, max_len: 
             np.asarray(toks, dtype=np.uint16).tofile(ft)
             np.asarray(masks, dtype=np.uint8).tofile(fm)
             toks, masks = [], []
-            if (i // B) % 10 == 0:
-                print(f"[sft] packed {i + len(chunk):,}/{len(rows):,} examples", flush=True)
+            n_done += len(chunk)
+            if n_done % (B * 20) == 0:
+                print(f"[sft] packed {n_done:,} examples", flush=True)
 
 
 def get_batch(tokens, mask, bs, block, rng):
@@ -92,7 +124,10 @@ def main() -> None:
     ap.add_argument("--time-budget", type=float, default=0.0)
     args = ap.parse_args()
 
+    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGINT, _handle_signal)
     torch.set_num_threads(args.threads)
+    torch.set_flush_denormal(True)
     torch.manual_seed(0)
     tokenizer = Tokenizer.from_file(os.path.join(DATA, "tokenizer.json"))
 
@@ -107,7 +142,10 @@ def main() -> None:
     tr_tok, tr_mask = tokens[:-n_val], mask[:-n_val]
     va_tok, va_mask = tokens[-n_val:], mask[-n_val:]
 
-    ck = torch.load(args.base, map_location="cpu", weights_only=False)
+    resume_path = os.path.join(CKPT_DIR, "sft_ckpt.pt")
+    resume = torch.load(resume_path, map_location="cpu", weights_only=False) \
+        if os.path.exists(resume_path) else None
+    ck = resume or torch.load(args.base, map_location="cpu", weights_only=False)
     cfg = GPTConfig(**ck["cfg"])
     model = GPT(cfg)
     model.load_state_dict(ck["model"])
@@ -131,11 +169,23 @@ def main() -> None:
         p = (s - args.warmup) / max(1, steps - args.warmup)
         return args.min_lr + 0.5 * (args.lr - args.min_lr) * (1 + math.cos(math.pi * p))
 
-    rng = np.random.default_rng(7)
+    start_step = 0
+    if resume is not None:
+        opt.load_state_dict(resume["optim"])
+        start_step = resume["step"]
+        print(f"[sft] resumed at step {start_step:,}", flush=True)
+        if start_step >= steps:
+            write_status(stage="sft", state="done", step=start_step, total_steps=steps,
+                         tokens=start_step * tps, total_tokens=args.tokens)
+            mark_done("sft")
+            print("[sft] budget already reached", flush=True)
+            return
+
+    rng = np.random.default_rng(7 + start_step)
     logf = open(os.path.join(CKPT_DIR, "sft_log.jsonl"), "a")
     t_start = t0 = time.time()
     ema = None
-    for step in range(steps):
+    for step in range(start_step, steps):
         for g in opt.param_groups:
             g["lr"] = lr_at(step)
         x, y = get_batch(tr_tok, tr_mask, args.batch_size, args.block_size, rng)
@@ -158,6 +208,11 @@ def main() -> None:
                   f"{(step+1)*tps/1e6:.2f}M/{args.tokens/1e6:.0f}M", flush=True)
             logf.write(json.dumps(rec) + "\n")
             logf.flush()
+            eta = (steps - step - 1) * dt
+            write_status(stage="sft", state="running", step=step + 1, total_steps=steps,
+                         tokens=(step + 1) * tps, total_tokens=args.tokens,
+                         loss=round(ema, 4), tok_per_s=round(tps / dt, 1), eta_s=round(eta),
+                         elapsed_s=round(time.time() - t_start))
 
         if (step + 1) % args.ckpt_interval == 0 or step + 1 == steps:
             model.eval()
@@ -177,12 +232,25 @@ def main() -> None:
             torch.save({"model": model.state_dict(), "cfg": cfg.__dict__,
                         "step": step + 1, "stage": "sft"}, args.out + ".tmp")
             os.replace(args.out + ".tmp", args.out)
+            torch.save({"model": model.state_dict(), "optim": opt.state_dict(),
+                        "cfg": cfg.__dict__, "step": step + 1, "stage": "sft"},
+                       resume_path + ".tmp")
+            os.replace(resume_path + ".tmp", resume_path)
 
-        if args.time_budget and time.time() - t_start > args.time_budget:
-            print("[sft] time budget reached", flush=True)
+        if _stop["flag"] or (args.time_budget and time.time() - t_start > args.time_budget):
             torch.save({"model": model.state_dict(), "cfg": cfg.__dict__,
                         "step": step + 1, "stage": "sft"}, args.out)
-            break
+            torch.save({"model": model.state_dict(), "optim": opt.state_dict(),
+                        "cfg": cfg.__dict__, "step": step + 1, "stage": "sft"}, resume_path)
+            write_status(stage="sft", state="paused", step=step + 1, total_steps=steps,
+                         tokens=(step + 1) * tps, total_tokens=args.tokens, loss=round(ema, 4))
+            print(f"[sft] stopped cleanly at step {step+1}", flush=True)
+            sys.exit(0)
+
+    write_status(stage="sft", state="done", step=steps, total_steps=steps,
+                 tokens=steps * tps, total_tokens=args.tokens,
+                 loss=round(ema or 0.0, 4))
+    mark_done("sft")
     print("[sft] finished", flush=True)
 
 
