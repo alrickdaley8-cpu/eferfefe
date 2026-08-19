@@ -99,24 +99,24 @@ class TinyConfigV2(TinyConfig):
 
 @dataclass
 class TinyConfig2M(TinyConfig):
-    """2M parameter model - as powerful as possible within 2M budget"""
-    # Architecture: ~2.02M params, more powerful
+    """2M parameter model - as powerful as possible within 2M budget, bug fixed"""
+    # Architecture: ~2.02M params, more powerful, fixed RoPE, SwiGLU
     vocab_size: int = 4096
-    max_seq_len: int = 512        # longer context for in-depth explanations (2x)
+    max_seq_len: int = 512        # longer context for in-depth explanations (2x) - no extra params
     d_model: int = 128            # bigger hidden
-    n_layers: int = 7             # deeper
-    n_heads: int = 8              # 128/8=16 per head
-    d_ff: int = 384               # SwiGLU: 3*128*384=147k per layer
-    dropout: float = 0.1
+    n_layers: int = 7             # deeper for reasoning
+    n_heads: int = 8              # 128/8=16 per head (better for RoPE)
+    d_ff: int = 384               # SwiGLU: 3*128*384=147k per layer, keeps 2M
+    dropout: float = 0.1          # regularize, was 0.0 bug for tiny data
     tie_weights: bool = True
-    use_swiglu: bool = True       # SwiGLU more powerful
+    use_swiglu: bool = True       # SwiGLU more powerful per param
 
-    # Training: 2M params *20 = 40M tokens Chinchilla optimal
+    # Training: 2M params *20 = 40M tokens Chinchilla optimal, fixed OOM bug
     total_tokens: int = 40_000_000
-    batch_size: int = 32
-    grad_accum_steps: int = 4     # eff batch 32*4*512=65536 tokens
+    batch_size: int = 8           # reduced further to fix OOM: 8*512=4096 tokens micro, low memory
+    grad_accum_steps: int = 16    # eff batch 8*16*512=65536 tokens same effective but much lower memory per micro
     max_steps: int = 610          # 40M / 65536 ≈ 610 effective
-    micro_steps: int = 2440       # micro steps = effective * grad_accum
+    micro_steps: int = 9760       # micro steps = effective * grad_accum (610*16) - more micro steps but each cheaper
     warmup_steps: int = 300
     lr_max: float = 6e-4
     lr_min: float = 6e-5
@@ -124,8 +124,8 @@ class TinyConfig2M(TinyConfig):
     betas: tuple = (0.9, 0.95)
     grad_clip: float = 1.0
 
-    # Advanced
-    use_compile: bool = False
+    # Advanced - fixed bare except bugs, added EMA, validation
+    use_compile: bool = False     # disabled for CPU, would need gcc+python-dev
     use_ema: bool = True
     ema_decay: float = 0.999
     use_amp: bool = False

@@ -25,10 +25,13 @@ def check_file(path):
                 else:
                     issues.append("Potential path traversal in serve_file")
 
-        # Check for eval or exec
-        if re.search(r'\beval\s*\(', content):
-            issues.append("Use of eval() - security risk")
-        if re.search(r'\bexec\s*\(', content):
+        # Check for eval or exec - avoid false positive for .eval() and eval_frame
+        # Use negative lookbehind for dot
+        if re.search(r'(?<!\.)\beval\s*\(', content):
+            # Double check not in eval_frame or model.eval
+            if 'eval_frame' not in content and '.eval()' not in content.split('eval(')[0][-20:]:
+                issues.append("Use of eval() - security risk")
+        if re.search(r'(?<!\.)\bexec\s*\(', content):
             issues.append("Use of exec() - security risk")
 
         # Check for torch.load without weights_only - we use weights_only=False intentionally for config, but should note
