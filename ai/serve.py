@@ -1,6 +1,13 @@
-"""Web playground for the tiny LM: retrieval-grounded chat + raw completion (stdlib only).
+"""Web UI for the tiny LM: streaming chat, a visible thought process, and model switching.
 
     python -m ai.serve --port 8000
+
+Endpoints
+    GET  /                  the UI
+    GET  /models            available checkpoints (+ which one is loaded)
+    GET  /status            live training progress
+    POST /chat/stream       server-sent events: thought → token → done
+    POST /chat              non-streaming convenience wrapper
 """
 from __future__ import annotations
 
@@ -8,138 +15,141 @@ import argparse
 import json
 import os
 import threading
+import time
+from collections import OrderedDict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import torch
 
-from ai.chat import Assistant, default_ckpt
+from ai.chat import CKPT_DIR, Assistant, default_ckpt, list_checkpoints
+from ai.ui import PAGE
 
-ASSISTANT: Assistant | None = None
 LOCK = threading.Lock()
-_mtime = 0.0
-_path = ""
+_cache: "OrderedDict[str, tuple[float, Assistant]]" = OrderedDict()
+_current = {"file": None}
+MAX_CACHED = 2
 
 
-def maybe_reload() -> None:
-    """Hot-swap the newest checkpoint while training is still running."""
-    global ASSISTANT, _mtime, _path
-    p = default_ckpt()
+def get_assistant(file: str | None = None) -> Assistant:
+    """Load (and cache) a checkpoint by file name; reload it if training rewrote it."""
+    file = file or _current["file"] or os.path.basename(default_ckpt())
+    path = os.path.join(CKPT_DIR, file)
+    if not os.path.exists(path):
+        path = default_ckpt()
+        file = os.path.basename(path)
+    mtime = os.path.getmtime(path)
+    with LOCK:
+        hit = _cache.get(file)
+        if hit and hit[0] >= mtime:
+            _cache.move_to_end(file)
+            _current["file"] = file
+            return hit[1]
+        a = Assistant(path)
+        _cache[file] = (mtime, a)
+        _cache.move_to_end(file)
+        while len(_cache) > MAX_CACHED:
+            _cache.popitem(last=False)
+        _current["file"] = file
+        print(f"[serve] loaded {file} ({a.stage}, step {a.step:,})", flush=True)
+        return a
+
+
+def training_status() -> dict:
     try:
-        m = os.path.getmtime(p)
-    except OSError:
-        return
-    if p != _path or m > _mtime:
-        with LOCK:
-            ASSISTANT = Assistant(p)
-            _mtime, _path = m, p
-            print(f"[serve] loaded {os.path.basename(p)} step {ASSISTANT.step} "
-                  f"({ASSISTANT.stage})", flush=True)
-
-
-PAGE = """<!doctype html>
-<html><head><meta charset="utf-8"><title>tiny-lm chat</title>
-<style>
- body{background:#0e1116;color:#e6edf3;font:15px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;
-      margin:0;padding:28px;display:flex;justify-content:center}
- .wrap{width:min(900px,100%)}
- h1{font-size:20px;margin:0 0 4px} .sub{color:#8b949e;font-size:12.5px;margin-bottom:18px}
- #log{min-height:220px}
- .msg{border-radius:10px;padding:11px 14px;margin:10px 0;white-space:pre-wrap}
- .you{background:#1f2a37;border:1px solid #30363d}
- .bot{background:#161b22;border:1px solid #30363d}
- .ctx{color:#8b949e;font-size:12px;border-left:2px solid #30363d;padding-left:10px;margin:6px 0 0}
- .row{display:flex;gap:10px;margin-top:14px}
- input[type=text]{flex:1;background:#161b22;color:#e6edf3;border:1px solid #30363d;
-   border-radius:8px;padding:12px;font:inherit}
- button{background:#238636;color:#fff;border:0;border-radius:8px;padding:10px 18px;font:inherit;
-   cursor:pointer} button:disabled{opacity:.5;cursor:wait}
- .opts{color:#8b949e;font-size:12.5px;margin-top:10px;display:flex;gap:18px;align-items:center}
- .chip{background:#21262d;border:1px solid #30363d;border-radius:999px;padding:4px 10px;
-   cursor:pointer;font-size:12px}
-</style></head><body><div class="wrap">
-<h1>tiny-lm &middot; 5.0M parameters</h1>
-<div class="sub" id="meta">loading…</div>
-<div id="log"></div>
-<div class="row">
-  <input id="q" type="text" placeholder="ask something about a Python package…"
-     onkeydown="if(event.key==='Enter')send()">
-  <button id="go" onclick="send()">Ask</button>
-</div>
-<div class="opts">
-  <label><input type="checkbox" id="rag" checked> retrieval grounding</label>
-  <label>temp <input id="t" type="range" min="10" max="130" value="70"
-    oninput="tv.textContent=(this.value/100).toFixed(2)" style="width:110px"></label>
-  <span id="tv">0.70</span>
-</div>
-<div class="opts" id="ex"></div>
-</div><script>
-const EX=["What is beautifulsoup4?","How do I install black?","What license does requests use?",
-          "Which package should I use for progress bars?","How do I read a text file in Python?",
-          "What is 128 + 46?"];
-ex.innerHTML = EX.map(e=>`<span class="chip" onclick="q.value=this.textContent;send()">${e}</span>`).join('');
-fetch('/info').then(r=>r.json()).then(d=>{meta.textContent =
-  d.params.toLocaleString()+' params · '+d.stage+' checkpoint '+d.checkpoint+' (step '+d.step+
-  ') · knowledge base '+d.kb.toLocaleString()+' packages';});
-function add(cls,html){const d=document.createElement('div');d.className='msg '+cls;
-  d.innerHTML=html;log.appendChild(d);window.scrollTo(0,document.body.scrollHeight);}
-async function send(){
-  const text=q.value.trim(); if(!text) return; q.value='';
-  add('you',escapeHtml(text)); go.disabled=true;
-  const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({message:text,use_context:rag.checked,temperature:+t.value/100})});
-  const d=await r.json();
-  add('bot',escapeHtml(d.answer||'(empty)')+
-    (d.context?'<div class="ctx">retrieved: '+escapeHtml(d.context.slice(0,240))+'…</div>':''));
-  go.disabled=false; q.focus();
-}
-function escapeHtml(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
-</script></body></html>"""
+        with open(os.path.join(CKPT_DIR, "status.json")) as f:
+            s = json.load(f)
+        s["live"] = (time.time() - s.get("updated_at", 0)) < 300
+        return s
+    except Exception:
+        return {"state": "unknown", "live": False}
 
 
 class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, *a):
+        pass
+
     def _send(self, code, body, ctype="application/json"):
         b = body.encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(b)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(b)
 
-    def log_message(self, *a):
-        pass
+    def _body(self) -> dict:
+        n = int(self.headers.get("Content-Length", 0))
+        return json.loads(self.rfile.read(n) or b"{}")
 
+    # ------------------------------------------------------------------ routes
     def do_GET(self):
         if self.path in ("/", "/index.html"):
             return self._send(200, PAGE, "text/html; charset=utf-8")
-        if self.path == "/info":
-            maybe_reload()
-            a = ASSISTANT
+        if self.path == "/models":
+            models = list_checkpoints()
+            cur = _current["file"] or os.path.basename(default_ckpt())
+            for m in models:
+                m["loaded"] = m["file"] == cur
+            a = get_assistant(cur)
             return self._send(200, json.dumps({
-                "params": a.model.num_params(), "step": a.step, "stage": a.stage,
-                "checkpoint": os.path.basename(a.path), "kb": len(a.retriever.docs)}))
+                "models": models, "current": cur, "params": a.model.num_params(),
+                "kb": len(a.retriever.docs), "vocab": a.model.cfg.vocab_size,
+                "block_size": a.model.cfg.block_size}))
+        if self.path == "/status":
+            return self._send(200, json.dumps(training_status()))
         self._send(404, json.dumps({"error": "not found"}))
 
     def do_POST(self):
-        if self.path not in ("/chat", "/generate"):
-            return self._send(404, json.dumps({"error": "not found"}))
-        maybe_reload()
-        n = int(self.headers.get("Content-Length", 0))
-        req = json.loads(self.rfile.read(n) or b"{}")
-        with LOCK, torch.no_grad():
-            if self.path == "/chat":
-                out = ASSISTANT.answer(req.get("message", ""),
-                                       max_tokens=int(req.get("tokens", 140)),
+        if self.path == "/chat":
+            req = self._body()
+            a = get_assistant(req.get("model"))
+            with LOCK:
+                out = a.answer(req.get("message", ""),
+                               max_tokens=int(req.get("tokens", 160)),
+                               temperature=float(req.get("temperature", 0.7)),
+                               top_k=int(req.get("top_k", 40)),
+                               use_context=bool(req.get("use_context", True)),
+                               chat_template=bool(req.get("chat_template", True)))
+            return self._send(200, json.dumps(out))
+
+        if self.path == "/chat/stream":
+            req = self._body()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Connection", "close")
+            self.end_headers()
+
+            def emit(ev: dict) -> None:
+                self.wfile.write(f"data: {json.dumps(ev)}\n\n".encode())
+                self.wfile.flush()
+
+            try:
+                a = get_assistant(req.get("model"))
+                emit({"type": "thought", "kind": "model",
+                      "text": f"{os.path.basename(a.path)} · {a.stage} checkpoint · "
+                              f"step {a.step:,} ({a.step*8192/1e6:.1f}M tokens) · "
+                              f"{a.model.num_params():,} params"})
+                with LOCK:
+                    for ev in a.stream(req.get("message", ""),
+                                       max_tokens=int(req.get("tokens", 160)),
                                        temperature=float(req.get("temperature", 0.7)),
-                                       use_context=bool(req.get("use_context", True)))
-            else:  # raw continuation, no chat template
-                tok = ASSISTANT.tok
-                ids = tok.encode(req.get("prompt", "")).ids or [ASSISTANT.eot]
-                x = torch.tensor([ids[-ASSISTANT.model.cfg.block_size:]], dtype=torch.long)
-                gen = ASSISTANT.model.generate(x, max_new_tokens=int(req.get("tokens", 160)),
-                                               temperature=float(req.get("temperature", 0.8)),
-                                               top_k=40, top_p=0.95)
-                out = {"answer": tok.decode(gen[0].tolist(), skip_special_tokens=False)}
-        self._send(200, json.dumps(out))
+                                       top_k=int(req.get("top_k", 40)),
+                                       use_context=bool(req.get("use_context", True)),
+                                       chat_template=bool(req.get("chat_template", True))):
+                        emit(ev)
+            except (BrokenPipeError, ConnectionResetError):
+                return
+            except Exception as exc:  # surface errors in the UI instead of hanging
+                try:
+                    emit({"type": "error", "text": f"{type(exc).__name__}: {exc}"})
+                except Exception:
+                    pass
+            return
+
+        self._send(404, json.dumps({"error": "not found"}))
 
 
 def main() -> None:
@@ -148,7 +158,7 @@ def main() -> None:
     ap.add_argument("--threads", type=int, default=1)
     args = ap.parse_args()
     torch.set_num_threads(args.threads)
-    maybe_reload()
+    get_assistant()
     print(f"[serve] http://0.0.0.0:{args.port}", flush=True)
     ThreadingHTTPServer(("0.0.0.0", args.port), Handler).serve_forever()
 

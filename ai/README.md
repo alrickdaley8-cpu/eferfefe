@@ -13,7 +13,8 @@ ai/
 ├── sample.py           # text generation CLI
 ├── daemon.sh           # background supervisor: start/stop/status/logs, auto-restart
 ├── status.py           # progress, loss, throughput, ETA of the background run
-└── serve.py            # tiny web playground (stdlib http.server)
+├── serve.py            # streaming web server (stdlib http.server, SSE)
+└── ui.py               # the single-page chat UI
 ```
 
 ## The model — 5,015,808 parameters
@@ -90,7 +91,7 @@ instruction tuning + retrieval grounding:
 | `ai/finetune.py` | SFT on those examples, loss on answer tokens only → `checkpoints/sft.pt` |
 | `ai/retrieve.py` | BM25-lite keyword search over the 11,922-package knowledge base (stdlib only) |
 | `ai/chat.py` | retrieve → build prompt → generate (CLI + `Assistant` class) |
-| `ai/serve.py` | chat web UI with a retrieval toggle |
+| `ai/serve.py` + `ai/ui.py` | streaming chat UI: visible thought process, model switcher, live training panel |
 
 Chat format (plain text, so no new tokenizer symbols are needed):
 
@@ -126,6 +127,28 @@ question. What it can realistically do after the full run: reply in the right fo
 for a described task, handle small arithmetic/string tasks, and refuse when the context is empty.
 Anything outside the knowledge base is a coin flip at best, which is exactly why the refusal
 behaviour is trained in.
+
+## The web UI
+
+`python -m ai.serve --port 8000` (the daemon starts it automatically) serves a single-page app:
+
+* **streaming answers** over server-sent events — tokens appear as they are sampled
+* **a visible thought process**, because there is no hidden magic to hide: the panel shows the
+  retrieval query, the top-3 candidate packages with their BM25 scores, the exact context that was
+  selected, the full prompt that went into the model (token count included), then live decoding —
+  per-token confidence and the top-5 alternative tokens with their probabilities — and finally
+  tokens/s and total latency
+* **a model switcher** — every checkpoint in `ai/checkpoints/` is offered (chat / base-latest /
+  base-best / frozen snapshots) with its stage, step and tokens-seen; switching is instant and the
+  two most recent models stay cached in memory
+* **decoding controls** — RAG grounding on/off, chat template on/off (raw completion mode),
+  temperature, top-k, max tokens
+* **a training panel** — stage, tokens, step, loss, throughput and ETA of the background run,
+  refreshed every 15 s, plus a hot-reload of any checkpoint the trainer rewrites
+
+API: `GET /models`, `GET /status`, `POST /chat`, `POST /chat/stream` (SSE: `thought` → `token` → `done`).
+The same trace is available in the terminal with `python -m ai.chat --think "..."`, and
+`python -m ai.chat --list` prints the checkpoints.
 
 ## Running it in the background
 
