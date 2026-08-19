@@ -201,12 +201,14 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
-        if path == "/" or path == "/index.html" or path == "/chat" or path == "/chat.html":
+        if path == "/" or path == "/index.html":
+            self.serve_file("index.html", "text/html")
+        elif path == "/chat" or path == "/chat.html":
             self.serve_file("chat.html", "text/html")
         elif path == "/llm_demo.html":
             self.serve_file("llm_demo.html", "text/html")
         elif path == "/game" or path == "/game.html":
-            self.serve_file("index.html", "text/html")
+            self.serve_file("game.html", "text/html")
         elif path == "/api/model_info":
             load_latest()
             info = {
